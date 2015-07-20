@@ -1,0 +1,38 @@
+#cloud-config
+cloud_config_modules:
+- disk_setup
+- mounts
+- locale
+- set-passwords
+- yum-add-repo
+- package-update-upgrade-install
+- timezone
+- disable-ec2-metadata
+- runcmd
+
+mounts:
+- [ /dev/xvdb, /var/lib/openshift, xfs, "defaults" ]
+
+disk_setup:
+  /dev/xvdb:
+    table_type: mbr
+    layout: True
+
+fs_setup:
+- label: etcd_storage
+  filesystem: xfs
+  device: /dev/xvdb
+  partition: auto
+
+write_files:
+- path: /etc/sudoers.d/99-openshift-cloud-init-requiretty
+  permissions: 440
+  content: |
+    Defaults:openshift !requiretty
+
+users:
+- default
+
+system_info:
+  default_user:
+    name: openshift

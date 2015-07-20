@@ -1,0 +1,54 @@
+---
+debug_level: 3
+deployment_type: enterprise
+identity_providers:
+- name: htpasswd_auth
+  login: true
+  challenge: true
+  kind: HTPasswdPasswordIdentityProvider
+  filename: /etc/openshift/master/htpasswd
+
+registry_template: 'registry.access.redhat.com/openshift3/ose-${component}:${version}'
+registry_image_url: 'registry.access.redhat.com/openshift3/ose-${component}:${version}'
+preload_images:
+- openshift3/nodejs-010-rhel7:latest
+- openshift3/ose-pod:latest
+- openshift3/ose-sti-image-builder:latest
+- openshift3/ose-sti-builder:latest
+- openshift3/ose-docker-builder:latest
+- openshift3/ose-deployer:latest
+
+
+os_defaults:
+  regions:
+  - name: infra
+    count: 1
+  - name: demo
+    count: "{{ num_app_nodes }}"
+
+provider_defaults:
+  ec2:
+    tags:
+      env: "{{ cluster_id }}"
+    groups: ["tag_env_{{ cluster_id }}"]
+    master:
+      groups:
+      - "tag_openshift-master_{{ cluster_id }}"
+      - "tag_openshift-node_{{ cluster_id }}"
+      - tag_node-region_master
+      security_groups:
+      - "{{ cluster_id }}-master"
+      - "{{ cluster_id }}-node"
+      tags:
+        openshift-master: "{{ cluster_id }}"
+        openshift-node: "{{ cluster_id }}"
+        node-region: master
+    node:
+      groups:
+      - "tag_openshift-node_{{ cluster_id }}"
+      security_groups:
+      - "{{ cluster_id }}-node"
+      tags:
+        openshift-node: "{{ cluster_id }}"
+
+
