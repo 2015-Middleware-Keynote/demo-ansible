@@ -1,0 +1,154 @@
+# vim: set ft=ansible:
+---
+- name: Node post config
+  hosts: oo_nodes_to_config
+  vars_files:
+  - ../vars.yml
+  tasks:
+  - lineinfile:
+      dest: /etc/sysconfig/docker
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+    with_items:
+    - regexp: INSECURE_REGISTRY=
+      line: INSECURE_REGISTRY='--insecure-registry 0.0.0.0/0'
+    register: docker_conf
+
+  - name: restart docker
+    service:
+      name: docker
+      state: restarted
+    when: docker_conf | changed
+
+  - lineinfile:
+      dest: /etc/resolv.conf
+      insertbefore: ^nameserver 172.*$
+      line: nameserver {{ hostvars[groups.oo_first_master.0].openshift.dns.ip }}
+      state: present
+
+  - lineinfile:
+      dest: /etc/dhcp/dhclient-eth0.conf
+      line: prepend domain-name-servers {{ hostvars[groups.oo_first_master.0].openshift.dns.ip }}
+      state: present
+      create: yes
+
+  - name: pre-pull images
+    command: "docker pull {{ item }}"
+    with_items: preload_images
+
+- name: First master post config
+  hosts: oo_first_master
+  vars_files:
+  - ../vars.yml
+  vars:
+  - proxy:
+      app_name: sketch
+      name: sketchproxy
+      project: default
+      region: demo
+  - default_password: I@mRedH@t
+  - users:
+    - name: demo
+      project: demo
+  - mock_users:
+    - name: cache
+      project: cache
+  tasks:
+  - command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
+    with_items: users
+
+  - command: oc project default
+
+  - command: oc label --overwrite nodes {{ hostvars[item].openshift.common.hostname }} region={{ hostvars[item].openshift_node_labels.region }} zone={{ hostvars[item].openshift_node_labels.zone }}
+    with_items: groups.oo_nodes_to_config
+
+  - command: oadm manage-node --selector="region=master" --schedulable=false
+
+  - command: oadm router --dry-run
+    register: router_out
+    ignore_errors: true
+
+  - file:
+      dest: "~{{ ansible_ssh_user }}/router_certs"
+      state: directory
+    when: router_out | failed
+
+  - command: "oadm create-server-cert --signer-cert=/etc/openshift/master/ca.crt --signer-key=/etc/openshift/master/ca.key --signer-serial=/etc/openshift/master/ca.serial.txt --hostnames='*.{{ r53_wildcard_zone }}' --cert={{ r53_wildcard_zone }}.crt --key={{ r53_wildcard_zone }}.key"
+    when: router_out | failed
+
+  - assemble:
+      dest: "~{{ ansible_ssh_user }}/{{ r53_wildcard_zone }}.pem"
+      src: "~{{ ansible_ssh_user }}/router_certs"
+    when: router_out | failed
+
+  - command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem
+    --credentials=/etc/openshift/master/openshift-router.kubeconfig
+    --selector='region=infra' --images='{{ registry_template }}'"
+    when: router_out | failed
+
+  - command: oadm registry --dry-run
+    register: registry_out
+    ignore_errors: true
+
+  - command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --selector='region=infra' --images='{{ registry_image_url }}'"
+    when: registry_out | failed
+
+  - copy:
+      src: ../files/imagestreams.json
+      dest: ~/imagestreams.json
+    register: is_copy_out
+
+  - command: oc create -f /root/imagestreams.json -n openshift
+    when: is_copy_out | changed
+
+  - command: oc get projects
+    register: projects
+
+  - command: "oc new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}'"
+    when: item.project not in projects.stdout
+    with_items: users | union(mock_users)
+
+  - command: oc project default
+
+  - command: oadm policy add-role-to-user admin {{ item.name }} -n {{ item.project }}
+    when: item.project not in projects.stdout
+    with_items: users
+
+  - command: oc project default
+
+#  - command: oc get dc
+#    register: dcs_out
+#    failed_when: "proxy.name not in dcs_out"
+#    ignore_errors: true
+#
+#  - template:
+#      dest: /root/proxy_template.json
+#      src: ../templates/proxy_template.json.j2
+#    when: dcs_out | failed
+#
+#  - command: oc create -f /root/proxy_template.json
+#    when: dcs_out | failed
+#
+  - command: oc get service
+    register: service_out
+  - set_fact:
+      registry_ip: "{{ item.split().3 }}"
+      registry_port: "{{ item.split().4.split('/').0 }}"
+    with_items: service_out.stdout_lines
+    when: "'docker-registry' in item"
+
+# TODO: after distributing the modify registry image then prime the registry
+#- name: Node post config
+#  hosts: oo_nodes_to_config
+#  vars:
+#    prime_image: nodejs-010-rhel7
+#    prime_tag: latest
+#    prime_namespace: cache
+#    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
+#    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
+#  serial: 1
+#  tasks:
+  # prime the registry with the nodejs image
+  #  - command: docker pull ec2-52-0-23-34.compute-1.amazonaws.com:5000/openshift3_beta/{{ prime_image }}:{{ prime_tag }}
+  #- command: docker tag -f openshift3_beta/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+  #- command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
