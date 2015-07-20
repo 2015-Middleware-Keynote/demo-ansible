@@ -17,15 +17,15 @@ These are the scripts used to standup the different summit demo environments.
 ## Requirements
 - ansible version 1.9.1 or greater
 - the master branch of openshift/openshift-ansible is expected to be a sibling
-  repo to the keynote2015 repo
+  repo to the demo-ansible repo
 
   ```
-  git clone https://github.com/openshift/keynote2015.git
+  git clone https://github.com/2015-Middleware-Keynote/demo-ansible.git
   git clone https://github.com/openshift/openshift-ansible.git
   ```
 
 ## Standing up a new Environment
 ```
-cd keynote2015/ansible
+cd demo-ansible
 ansible-playbook -i inventory/aws/hosts playbooks/openshift_setup.yml
 ```
