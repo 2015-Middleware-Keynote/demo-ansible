@@ -91,18 +91,10 @@
   - command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --selector='region=infra' --images='{{ registry_image_url }}'"
     when: registry_out | failed
 
-  - copy:
-      src: ../files/imagestreams.json
-      dest: ~/imagestreams.json
-    register: is_copy_out
-
-  - command: oc create -f /root/imagestreams.json -n openshift
-    when: is_copy_out | changed
-
   - command: oc get projects
     register: projects
 
-  - command: "oc new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}'"
+  - command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}'"
     when: item.project not in projects.stdout
     with_items: users | union(mock_users)
 
@@ -146,6 +138,6 @@
   serial: 1
   tasks:
   # prime the registry with the nodejs image
-  - command: docker pull ec2-52-0-23-34.compute-1.amazonaws.com:5000/openshift3_beta/{{ prime_image }}:{{ prime_tag }}
-  - command: docker tag -f openshift3_beta/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+  - command: docker pull openshift3/{{ prime_image }}:{{ prime_tag }}
+  - command: docker tag -f openshift3/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
   - command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
