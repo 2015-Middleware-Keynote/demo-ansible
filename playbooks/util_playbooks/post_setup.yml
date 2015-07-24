@@ -81,9 +81,7 @@
       src: "~{{ ansible_ssh_user }}/router_certs"
     when: router_out | failed
 
-  - command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem
-    --credentials=/etc/openshift/master/openshift-router.kubeconfig
-    --selector='region=infra' --images='{{ registry_template }}'"
+  - command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/openshift/master/openshift-router.kubeconfig --selector='region=infra' --images='{{ registry_template }}'"
     when: router_out | failed
 
   - command: oadm registry --dry-run
@@ -137,18 +135,17 @@
     with_items: service_out.stdout_lines
     when: "'docker-registry' in item"
 
-# TODO: after distributing the modify registry image then prime the registry
-#- name: Node post config
-#  hosts: oo_nodes_to_config
-#  vars:
-#    prime_image: nodejs-010-rhel7
-#    prime_tag: latest
-#    prime_namespace: cache
-#    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
-#    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
-#  serial: 1
-#  tasks:
+- name: Node post config
+  hosts: oo_nodes_to_config
+  vars:
+    prime_image: nodejs-010-rhel7
+    prime_tag: latest
+    prime_namespace: cache
+    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
+    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
+  serial: 1
+  tasks:
   # prime the registry with the nodejs image
-  #  - command: docker pull ec2-52-0-23-34.compute-1.amazonaws.com:5000/openshift3_beta/{{ prime_image }}:{{ prime_tag }}
-  #- command: docker tag -f openshift3_beta/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
-  #- command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+  - command: docker pull ec2-52-0-23-34.compute-1.amazonaws.com:5000/openshift3_beta/{{ prime_image }}:{{ prime_tag }}
+  - command: docker tag -f openshift3_beta/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+  - command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
