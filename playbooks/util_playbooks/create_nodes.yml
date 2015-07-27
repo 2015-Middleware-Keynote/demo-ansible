@@ -63,7 +63,7 @@
     route53:
       command: create
       zone: "{{ r53_host_zone }}"
-      record: "*.{{ r53_wildcard_prefix }}"
+      record: "*.{{ r53_wildcard_prefix }}.{{ r53_host_zone }}"
       ttl: 60
       type: A
       value: "{{ item.1.public_ip }}"
