@@ -39,7 +39,7 @@
       username: "{{ rhn_username }}"
       password: "{{ rhn_password }}"
       state: present
-      pool: "^60 Day Supported OpenShift Enterprise"
+      pool: "^60 Day Supported OpenShift Enterprise|^Employee"
 
   - name: Enable rhui extras channel
     command: yum-config-manager --enable rhui-REGION-rhel-server-extras
