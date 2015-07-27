@@ -33,11 +33,22 @@
     prompt: What route53 zone to use for apps?
     default: apps.aws.paas.ninja
     private: no
-  - name: c_num_app_nodes
-    prompt: Number of app nodes?
-    default: 1
+  - name: c_cluster_size
+    prompt: Cluster size (xsmall, small, medium, large, xlarge)?
+    default: xsmall
     private: no
+  vars:
+    cluster_sizes:
+      xsmall: 1
+      small: 3
+      medium: 5
+      large: 10
+      xlarge: 20
   tasks:
+  - fail:
+      msg: Cluster size must be be in {{ cluster_sizes.keys() }}
+    when: c_cluster_size not in cluster_sizes.keys()
+
   - set_fact: cluster_id={{ c_id }}
   - set_fact: ec2_region={{ c_region }}
   - set_fact: ec2_image={{ c_image }}
@@ -45,7 +56,8 @@
   - set_fact: ec2_instance_type={{ c_instance }}
   - set_fact: r53_host_zone={{ c_host_zone }}
   - set_fact: r53_wildcard_zone={{ c_wildcard_zone }}
-  - set_fact: num_app_nodes={{ c_num_app_nodes }}
+  - set_fact: num_app_nodes={{ cluster_sizes[c_cluster_size] }}
+  - set_fact: hexboard_size={{ c_cluster_size }}
 
 # create VPC configuration
 - include: util_playbooks/create_vpc.yml
