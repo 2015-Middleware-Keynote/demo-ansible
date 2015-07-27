@@ -62,13 +62,13 @@
   - name: Create wildcard dns entry if infrastructure node
     route53:
       command: create
-      zone: "{{ r53_wildcard_zone }}"
-      record: "*.{{ r53_wildcard_zone }}"
+      zone: "{{ r53_host_zone }}"
+      record: "*.{{ r53_wildcard_prefix }}"
       ttl: 60
       type: A
       value: "{{ item.1.public_ip }}"
       overwrite: yes
-    when: r53_wildcard_zone and item.0.item.name == 'infra' and item.1.state == 'running'
+    when: r53_wildcard_prefix and item.0.item.name == 'infra' and item.1.state == 'running'
     with_subelements:
     - ec2.results
     - instances
