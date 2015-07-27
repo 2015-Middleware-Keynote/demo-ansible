@@ -57,6 +57,7 @@
   - set_fact: r53_host_zone={{ c_host_zone }}
   - set_fact: r53_wildcard_prefix={{ c_wildcard_prefix }}
   - set_fact: r53_wildcard_zone={{ c_wildcard_prefix }}.{{ c_host_zone }}
+  - set_fact: num_app_nodes={{ cluster_sizes[c_cluster_size] }}
   - set_fact: hexboard_size={{ c_cluster_size }}
 
 # create VPC configuration
