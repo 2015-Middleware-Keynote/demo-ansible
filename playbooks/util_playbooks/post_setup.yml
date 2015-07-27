@@ -50,6 +50,8 @@
   - users:
     - name: demo
       project: demo
+    - name: hexboard
+      project: hexboard
   - mock_users:
     - name: cache
       project: cache
@@ -106,19 +108,39 @@
 
   - command: oc project default
 
-#  - command: oc get dc
-#    register: dcs_out
-#    failed_when: "proxy.name not in dcs_out"
-#    ignore_errors: true
-#
-#  - template:
-#      dest: /root/proxy_template.json
-#      src: ../templates/proxy_template.json.j2
-#    when: dcs_out | failed
-#
-#  - command: oc create -f /root/proxy_template.json
-#    when: dcs_out | failed
-#
+  - command: oc get dc
+    register: dcs_out
+    failed_when: "hexboard.name not in dcs_out"
+    ignore_errors: true
+
+  - command: oc login -u {{ users.0.name }} -p {{ default_password }}
+    when: dcs_out | failed
+
+  - script: ../files/get_token.sh
+    register: auth_token
+    when: dcs_out | failed
+
+  - set_fact:
+      access_token: "{{ auth_token.stdout }}"
+    when: dcs_out | failed
+
+  - script: ../files/get_context.sh
+    register: default_context
+    when: dcs_out | failed
+
+  - command: oc config use-context {{ default_context.stdout }}
+    when: dcs_out | failed
+
+  - command: oc project default
+
+  - template:
+      dest: /root/hexboard_template.json
+      src: ../templates/hexboard_template.json.j2
+    when: dcs_out | failed
+
+  - command: oc create -f /root/hexboard_template.json
+    when: dcs_out | failed
+
   - command: oc get service
     register: service_out
   - set_fact:

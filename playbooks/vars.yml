@@ -18,6 +18,10 @@ preload_images:
 - openshift3/ose-docker-builder:latest
 - openshift3/ose-deployer:latest
 
+hexboard:
+  name: hexboard
+  src_url: http://github.com/bleathem/keynote2015-hexboard
+  img: openshift3/nodejs-010-rhel7:latest
 
 os_defaults:
   regions:
