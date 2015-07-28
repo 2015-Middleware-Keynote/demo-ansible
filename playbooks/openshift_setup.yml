@@ -19,7 +19,7 @@
     private: no
   - name: c_instance
     prompt: What ec2 instance type?
-    default: m3.large
+    default: m4.large
     private: no
   - name: c_keypair
     prompt: What ec2 keypair?
