@@ -14,9 +14,7 @@ These are the scripts used to stand up your own environment running the demo fro
     `AWS_SECRET_ACCESS_KEY` env variables or using any of the environment
     variables/configs supported by
     [boto](http://boto.readthedocs.org/en/latest/boto_config_tut.html)
-- 2 pre-created route53 host zones
-  - 1 for host entries that are assigned to each created instance
-  - 1 for the application domain (a wildcard entry is created that maps to the router)
+- a pre-created route53 host zones
 - An SSH keypair in mind, with the key exported via ssh-add
 
 ## Requirements
