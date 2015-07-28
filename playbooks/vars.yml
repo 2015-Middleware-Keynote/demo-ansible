@@ -22,7 +22,7 @@ hexboard:
   namespace: demo
   watch_namespace: demo
   name: hexboard
-  src_url: http://github.com/bleathem/keynote2015-hexboard
+  src_url: https://github.com/2015-Middleware-Keynote/hexboard
   img: openshift3/nodejs-010-rhel7:latest
 
 os_defaults:
