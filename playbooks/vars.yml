@@ -19,6 +19,8 @@ preload_images:
 - openshift3/ose-deployer:latest
 
 hexboard:
+  namespace: demo
+  watch_namespace: demo
   name: hexboard
   src_url: http://github.com/bleathem/keynote2015-hexboard
   img: openshift3/nodejs-010-rhel7:latest
