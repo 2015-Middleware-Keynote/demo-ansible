@@ -57,7 +57,7 @@
   - name: Create host dns entry
     route53:
       command: create
-      zone: "{{ r53_host_zone }}"
+      zone: "{{ r53_zone }}"
       record: "openshift-master.{{ r53_host_zone }}"
       ttl: 60
       type: A
