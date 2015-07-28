@@ -25,9 +25,13 @@
     prompt: What ec2 keypair?
     default: default
     private: no
-  - name: c_host_zone
-    prompt: What route53 zone to use for hosts?
+  - name: c_zone
+    prompt: What route53 zone to use?
     default: aws.paas.ninja
+    private: no
+  - name: c_host_prefix
+    prompt: What zone prefix to use for hosts?
+    default: hosts
     private: no
   - name: c_wildcard_prefix
     prompt: What zone prefix to use for apps?
@@ -54,9 +58,9 @@
   - set_fact: ec2_image={{ c_image }}
   - set_fact: ec2_keypair={{ c_keypair }}
   - set_fact: ec2_instance_type={{ c_instance }}
-  - set_fact: r53_host_zone={{ c_host_zone }}
-  - set_fact: r53_wildcard_prefix={{ c_wildcard_prefix }}
-  - set_fact: r53_wildcard_zone={{ c_wildcard_prefix }}.{{ c_host_zone }}
+  - set_fact: r53_zone={{ c_zone }}
+  - set_fact: r53_host_zone={{ c_host_prefix }}.{{ c_zone }}
+  - set_fact: r53_wildcard_zone={{ c_wildcard_prefix }}.{{ c_zone }}
   - set_fact: num_app_nodes={{ cluster_sizes[c_cluster_size] }}
   - set_fact: hexboard_size={{ c_cluster_size }}
 
