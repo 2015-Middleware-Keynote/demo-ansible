@@ -124,6 +124,22 @@
       access_token: "{{ auth_token.stdout }}"
     when: dcs_out | failed
 
+  - command: oc project {{ hexboard.namespace }}
+    when: dcs_out | failed
+
+  - template:
+      dest: /root/hexboard_template.json
+      src: ../templates/hexboard_template.json.j2
+    when: dcs_out | failed
+
+  - command: oc create -f /root/hexboard_template.json
+    when: dcs_out | failed
+
+  # TODO: it appears the build fails sometimes, need to do better validation
+  # on the build and attempt 1 or more retries if it fails
+  - command: oc start-build {{ hexboard.name }}
+    when: dcs_out | failed
+
   - script: ../files/get_context.sh
     register: default_context
     when: dcs_out | failed
@@ -133,13 +149,6 @@
 
   - command: oc project default
 
-  - template:
-      dest: /root/hexboard_template.json
-      src: ../templates/hexboard_template.json.j2
-    when: dcs_out | failed
-
-  - command: oc create -f /root/hexboard_template.json
-    when: dcs_out | failed
 
   - command: oc get service
     register: service_out

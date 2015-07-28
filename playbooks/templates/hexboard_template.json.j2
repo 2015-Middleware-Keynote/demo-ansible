@@ -91,13 +91,13 @@
                 ],
                 "replicas": 1,
                 "selector": {
-                    "deploymentconfig": "{{ hexboard.name }}"
+                    "name": "{{ hexboard.name }}"
                 },
                 "template": {
                     "metadata": {
                         "creationTimestamp": null,
                         "labels": {
-                            "deploymentconfig": "{{ hexboard.name }}"
+                            "name": "{{ hexboard.name }}"
                         }
                     },
                     "spec": {
@@ -119,6 +119,10 @@
                                         "value": "{{ access_token }}"
                                     },
                                     {
+                                        "name": "NAMESPACE",
+                                        "value": "{{ hexboard.watch_namespace }}"
+                                    },
+                                    {
                                         "name": "HEXBOARD_SIZE",
                                         "value": "{{ hexboard_size }}"
                                     }
@@ -127,7 +131,8 @@
                                     {
                                         "name": "hexboard-tcp-8080",
                                         "containerPort": 8080,
-                                        "protocol": "TCP"
+                                        "protocol": "TCP",
+                                        "targetPort": 8080
                                     }
                                 ],
                                 "resources": {},
@@ -140,7 +145,10 @@
                             }
                         ],
                         "restartPolicy": "Always",
-                        "dnsPolicy": "ClusterFirst"
+                        "dnsPolicy": "ClusterFirst",
+                        "nodeSelector": {
+                            "region": "demo"
+                        }
                     }
                 }
             },
@@ -176,12 +184,10 @@
                 "name": "{{ hexboard.name }}-route"
             },
             "spec": {
-                "host": "{{ hexboard.name ~ '-default.' ~ r53_wildcard_zone }}",
+                "host": "{{ hexboard.name ~ '-' ~ hexboard.namespace ~ '.' ~ r53_wildcard_zone }}",
                 "to": {
+                    "kind": "Service",
                     "name": "{{ hexboard.name }}-service"
-                },
-                "tls": {
-                    "termination": "edge"
                 }
             }
         }

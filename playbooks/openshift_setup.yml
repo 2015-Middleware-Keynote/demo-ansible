@@ -134,3 +134,4 @@
   vars:
     cluster_id: "{{ hostvars.localhost.cluster_id }}"
     r53_wildcard_zone: "{{ hostvars.localhost.r53_wildcard_zone }}"
+    hexboard_size: "{{ hostvars.localhost.hexboard_size }}"
