@@ -6,10 +6,13 @@
   gather_facts: no
   vars_files:
   - ../vars.yml
-  - ../vars.{{ c_id }}.yml
   vars:
     cluster_hosts: "{{ groups['tag_env_' ~ cluster_id] }}"
   tasks:
+  - fail:
+      msg: required values not set
+    when: rhsm_user is not defined or rhsm_pass is not defined or cluster_id is not defined
+
   - add_host:
       name: "{{ item }}"
       ansible_ssh_user: openshift
@@ -19,14 +22,8 @@
 
 - name: Register host(s)
   hosts: oo_hosts_to_register
-  vars_prompt:
-  - name: rhn_username
-    prompt: "RHN Username"
-    private: no
-  - name: rhn_password
-    prompt: "RHN Password"
-    private: yes
   tasks:
+
   - name: Enable subscription-manager
     ini_file:
       dest: /etc/yum/pluginconf.d/subscription-manager.conf
@@ -36,8 +33,8 @@
 
   - name: Register host
     redhat_subscription:
-      username: "{{ rhn_username }}"
-      password: "{{ rhn_password }}"
+      username: "{{ rhsm_user }}"
+      password: "{{ rhsm_pass }}"
       state: present
       pool: "^(60 Day Supported OpenShift Enterprise|Employee)"
 

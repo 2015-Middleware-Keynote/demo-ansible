@@ -4,65 +4,10 @@
   connection: local
   sudo: no
   gather_facts: no
-  vars_prompt:
-  - name: c_id
-    prompt: What cluster_id?
-    default: summit
-    private: no
-  - name: c_region
-    prompt: What ec2 region?
-    default: us-east-1
-    private: no
-  - name: c_image
-    prompt: What ec2 image?
-    default: ami-12663b7a
-    private: no
-  - name: c_instance
-    prompt: What ec2 instance type?
-    default: m4.large
-    private: no
-  - name: c_keypair
-    prompt: What ec2 keypair?
-    default: default
-    private: no
-  - name: c_zone
-    prompt: What route53 zone to use?
-    default: aws.paas.ninja
-    private: no
-  - name: c_host_prefix
-    prompt: What zone prefix to use for hosts?
-    default: hosts
-    private: no
-  - name: c_wildcard_prefix
-    prompt: What zone prefix to use for apps?
-    default: apps
-    private: no
-  - name: c_cluster_size
-    prompt: Cluster size (xsmall, small, medium, large, xlarge)?
-    default: xsmall
-    private: no
-  vars:
-    cluster_sizes:
-      xsmall: 1
-      small: 3
-      medium: 5
-      large: 10
-      xlarge: 20
   tasks:
   - fail:
-      msg: Cluster size must be be in {{ cluster_sizes.keys() }}
-    when: c_cluster_size not in cluster_sizes.keys()
-
-  - set_fact: cluster_id={{ c_id }}
-  - set_fact: ec2_region={{ c_region }}
-  - set_fact: ec2_image={{ c_image }}
-  - set_fact: ec2_keypair={{ c_keypair }}
-  - set_fact: ec2_instance_type={{ c_instance }}
-  - set_fact: r53_zone={{ c_zone }}
-  - set_fact: r53_host_zone={{ c_host_prefix }}.{{ c_zone }}
-  - set_fact: r53_wildcard_zone={{ c_wildcard_prefix }}.{{ c_zone }}
-  - set_fact: num_app_nodes={{ cluster_sizes[c_cluster_size] }}
-  - set_fact: hexboard_size={{ c_cluster_size }}
+      msg: required values not set
+    when: cluster_id is not defined or ec2_region is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_instance_type is not defined or r53_zone is not defined or r53_host_zone is not defined or r53_wildcard_zone is not defined or num_app_nodes is not defined or hexboard_size is not defined or rhsm_user is not defined or rhsm_pass is not defined
 
 # create VPC configuration
 - include: util_playbooks/create_vpc.yml
@@ -101,28 +46,25 @@
       ansible_ssh_user: openshift
       ansible_sudo: yes
       groups: oo_masters_to_config, oo_first_master
-      r53_host_zone: "{{ hostvars.localhost.r53_host_zone }}"
       openshift_public_hostname: "{{ hostvars[item]['ec2_tag_Name'] }}"
-      cluster_id: "{{ hostvars.localhost.cluster_id }}"
-      openshift_cluster_id: "{{ hostvars.localhost.cluster_id }}"
+      openshift_cluster_id: "{{ cluster_id }}"
       openshift_debug_level: "{{ debug_level }}"
       openshift_deployment_type: "{{ deployment_type }}"
       openshift_master_access_token_max_seconds: 2419200
       openshift_master_identity_providers: "{{ identity_providers }}"
       osm_cluster_network_cidr: 10.0.0.0/8
       osm_host_subnet_length: 16
+      osm_default_subdomain: "{{ r53_wildcard_zone }}"
     with_items: master_hosts
   - add_host:
       name: "{{ item }}"
       ansible_ssh_user: openshift
       ansible_sudo: yes
       groups: oo_nodes_to_config
-      cluster_id: "{{ hostvars.localhost.cluster_id }}"
-      openshift_cluster_id: "{{ hostvars.localhost.cluster_id }}"
+      openshift_cluster_id: "{{ cluster_id }}"
       openshift_debug_level: "{{ debug_level }}"
       openshift_deployment_type: "{{ deployment_type }}"
       openshift_public_hostname: "{{ hostvars[item]['ec2_tag_Name'] }}"
-      r53_host_zone: "{{ hostvars.localhost.r53_host_zone }}"
       openshift_node_labels:
         region: "{{ hostvars[item]['ec2_tag_node-region'] }}"
         zone: default
@@ -136,7 +78,3 @@
     g_nodes_group: oo_nodes_to_config
 
 - include: util_playbooks/post_setup.yml
-  vars:
-    cluster_id: "{{ hostvars.localhost.cluster_id }}"
-    r53_wildcard_zone: "{{ hostvars.localhost.r53_wildcard_zone }}"
-    hexboard_size: "{{ hostvars.localhost.hexboard_size }}"

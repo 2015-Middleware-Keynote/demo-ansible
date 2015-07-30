@@ -7,7 +7,6 @@
   sudo: no
   vars_files:
   - ../vars.yml
-  - ../vars.{{ c_id }}.yml
   vars:
     host_groups: "{{ provider_defaults.ec2.groups }}"
     host_tags: "{{ provider_defaults.ec2.tags }}"
@@ -16,6 +15,10 @@
     node_security_groups: "{{ provider_defaults.ec2.node.security_groups }}"
     node_regions: "{{ os_defaults.regions }}"
   tasks:
+  - fail:
+      msg: required values not set
+    when: ec2_region is not defined or cluster_id is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_instance_type is not defined or r53_host_zone is not defined or r53_wildcard_zone is not defined
+
   - set_fact:
       os_type: node
       security_groups: "{{ node_security_groups }}"

@@ -10,6 +10,10 @@
                 | default(provider_defaults.ec2.vpc_id, true)
                 | default(omit) }}"
   tasks:
+  - fail:
+      msg: required values not set
+    when: cluster_id is not defined or ec2_region is not defined
+
   - name: Create ec2 node security group
     ec2_group:
       region: "{{ ec2_region }}"

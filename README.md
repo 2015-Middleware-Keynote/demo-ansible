@@ -14,8 +14,12 @@ These are the scripts used to stand up your own environment running the demo fro
     `AWS_SECRET_ACCESS_KEY` env variables or using any of the environment
     variables/configs supported by
     [boto](http://boto.readthedocs.org/en/latest/boto_config_tut.html)
-- a pre-created route53 host zones
-- An SSH keypair in mind, with the key exported via ssh-add
+- A pre-created route53
+    [public hosted zone](http://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingHostedZone.html)
+- A pre-created ec2 keypair
+  - You will need to specify the name of this keypair when running the
+      environment creation script
+  - You will also need to add the private key to your ssh agent: `ssh-add <path to key file>`
 
 ## Requirements
 
@@ -30,8 +34,25 @@ These are the scripts used to stand up your own environment running the demo fro
   ```
 
 ## Standing up a new Environment
-
+List the options for run.py:
 ```
 cd demo-ansible
-ansible-playbook -i inventory/aws/hosts playbooks/openshift_setup.yml
+./run.py --help
 ```
+
+
+Stand up an environment using the defaults. run.py will prompt for Rhsm user, Rhsm password and route53 hosted zone
+```
+./run.py
+```
+
+Stand up an environment without being prompted for confirmation and overriding
+the cluster id, environment size, and keypair:
+```
+./run.py --no-confirm --cluster-id my_cluster --env-size medium --keypair my_keypair \
+--r53-zone my.hosted.domain --rhsm-user my_redhat_user --rhsm-pass my_redhat_pass
+```
+
+After the run has completed the openshift web console will be available at
+`https://openshift-master.<cluster id>.<r53 zone>:8443` and routes created for
+applications will default to `<app name>.<project name>.<cluster id>.<r53 zone>`
