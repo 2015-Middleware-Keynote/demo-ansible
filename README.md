@@ -6,9 +6,12 @@ These are the scripts used to stand up your own environment running the demo fro
 ## Prerequisites
 
 - An AWS account with permissions to do the following:
-  - Create and modify a VPC
-  - Create and modify Security Groups
-  - Create and modify route53 entries
+  - Create and modify a VPC (A VPC is created for each cluster-id)
+  - Create and modify Security Groups (2 security groups are created for each
+    cluster-id, one for masters and one for nodes)
+  - Create and modify route53 entries (Route 53 entries are added to the
+    hosted zone specified by r53-zone for each ec2 instance created as well as
+    a wildcard dns entry for router)
   - Craete and modify EC2 instances
 - AWS credentials may be specified either through the `AWS_ACCESS_KEY_ID` and
     `AWS_SECRET_ACCESS_KEY` env variables or using any of the environment
