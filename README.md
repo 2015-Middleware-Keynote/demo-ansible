@@ -27,6 +27,8 @@ These are the scripts used to stand up your own environment running the demo fro
 ## Requirements
 
 - [Ansible](https://github.com/ansible/ansible) version 1.9.1 or greater
+- [Click](https://github.com/mitsuhiko/click) version 3.0 or greater
+  - Available in Fedora and EPEL channels as python-click
 - The master branch of
     [openshift/openshift-ansible](https://github.com/openshift/openshift-ansible)
     is expected to be a sibling repo to the demo-ansible repo
