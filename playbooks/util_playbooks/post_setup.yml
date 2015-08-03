@@ -85,8 +85,13 @@
       project: "{{ prime_namespace }}"
     default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
   tasks:
-  - command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
+  - name: Create the default users
+    command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
     with_items: users
+
+  - name: Create the 40 workshop users
+    command: "htpasswd -b /etc/openshift/master/htpasswd {{ item }} {{ default_password }}"
+    with_sequence: start=0 end=40 format=user%02x
 
   - command: oc project default
 

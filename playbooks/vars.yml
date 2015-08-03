@@ -8,7 +8,7 @@ identity_providers:
   kind: HTPasswdPasswordIdentityProvider
   filename: /etc/openshift/master/htpasswd
 
-default_password: I@mRedH@t
+default_password: "{{ cluster_id }}"
 
 registry_template: 'registry.access.redhat.com/openshift3/ose-${component}:${version}'
 registry_image_url: 'pmorie/origin-docker-registry:latest'
