@@ -69,6 +69,8 @@
       line: '  defaultNodeSelector: "region=demo"'
     notify: restart openshift-master
 
+  - meta: flush_handlers
+
   - command: oc project default
 
   - name: Fix node labels
