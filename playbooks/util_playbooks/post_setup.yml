@@ -80,6 +80,9 @@
   - name: Unschedule master
     command: oadm manage-node --selector="region=master" --schedulable=false
 
+  - name: Set default project nodeselector to be region=infra
+    shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: region=infra' | oc replace -f -"
+
   - name: Verify whether a router exists or not
     command: oadm router --dry-run --service-account=router
     register: router_out
@@ -110,7 +113,7 @@
     when: router_out | failed
 
   - name: Install router
-    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/openshift/master/openshift-router.kubeconfig --selector='region=infra' --images='{{ registry_template }}' --service-account=router"
+    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/openshift/master/openshift-router.kubeconfig --service-account=router"
     when: router_out | failed
 
   - name: Check whether a registry exists or not
@@ -119,7 +122,7 @@
     ignore_errors: true
 
   - name: Install registry
-    command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --selector='region=infra' --images='{{ registry_image_url }}'"
+    command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
     when: registry_out | failed
 
   - command: oc env dc/docker-registry GOMAXPROCS={{ groups['tag_node-region_infra'].0.ansible_processor_cores }}
@@ -181,7 +184,6 @@
     when: dcs_out | failed
 
   - command: oc project default
-
 
   - command: oc get service
     register: service_out
