@@ -102,7 +102,7 @@
   - name: Unschedule master
     command: oadm manage-node --selector="region=master" --schedulable=false
 
-  - name: Set default project nodeselector to be region=infra
+  - name: Set nodeselector for the default project to be region=infra
     shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: region=infra' | oc replace -f -"
 
   - name: Verify whether a router exists or not
@@ -201,6 +201,34 @@
 
   - command: "oc config use-context {{ default_context }}"
     when: dcs_out | failed
+
+  # Set up the smoke project and app
+  - name: Create user smoke test projects
+    command: "oadm new-project {{ item }}-smoke --display-name='Smoke Test' --admin={{ item }}"
+    when: item not in projects.stdout
+    with_sequence: start=0 end=40 format=user%02d
+
+  - name: Create "app" in smoke projects
+    command: "oc new-app openshift/php~https://github.com/gshipley/smoke.git -n {{ item }}-smoke"
+    when: item not in projects.stdout
+    with_sequence: start=0 end=40 format=user%02d
+
+  - name: Expose smoke project service
+    command: "oc expose service smoke -n {{ item }}-smoke"
+    when: item not in projects.stdout
+    with_sequence: start=0 end=40 format=user%02d
+
+  - name: Wait to scale smoke app for first deployment
+    shell: "oc get rc --all-namespaces | grep smoke | wc -l"
+    register: build_output
+    until: build_output.stdout.find("41") != -1
+    retries: 11
+    delay: 30
+
+  - name: Scale smoke app
+    command: "oc scale dc/smoke --replicas=2 -n {{ item }}-smoke"
+    when: item not in projects.stdout
+    with_sequence: start=0 end=40 format=user%02d
 
   - command: oc project default
 
