@@ -30,6 +30,9 @@
 # Register any un-registered hosts to rhsm
 - include: util_playbooks/register_host.yml
 
+# Finish subscription and repo setup
+- include: util_playbooks/post_register_host.yml
+
 # Add the created hosts to groups for configuration
 - hosts: localhost
   connection: local

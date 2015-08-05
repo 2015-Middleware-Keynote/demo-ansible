@@ -20,21 +20,21 @@
       groups: oo_hosts_to_register
     with_items: cluster_hosts
 
-- name: Register host(s)
+- name: Post register host(s)
   hosts: oo_hosts_to_register
-  serial: 1
   tasks:
 
-  - name: Enable subscription-manager
-    ini_file:
-      dest: /etc/yum/pluginconf.d/subscription-manager.conf
-      section: main
-      option: enabled
-      value: 1
+  - name: Enable rhui extras channel
+    command: yum-config-manager --enable rhui-REGION-rhel-server-extras
 
-  - name: Register host
-    redhat_subscription:
-      username: "{{ rhsm_user }}"
-      password: "{{ rhsm_pass }}"
-      state: present
-      pool: "^(60 Day Supported OpenShift Enterprise|Employee)"
+  - name: Disable all known rhsm repos
+    command: subscription-manager repos --disable='*'
+
+  - name: Subscribe only to the ose repo
+    command: subscription-manager repos --enable=rhel-7-server-ose-3.0-rpms
+
+  - name: Update current package set
+    yum:
+      name: '*'
+      state: latest
+
