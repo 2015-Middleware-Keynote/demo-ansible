@@ -4,7 +4,8 @@ import click
 import os
 import sys
 
-env_sizes = {'xsmall': 1,
+env_sizes = {'tiny': 1,
+             'xsmall': 2,
              'small': 3,
              'medium': 5,
              'large': 10,
@@ -16,7 +17,7 @@ env_sizes = {'xsmall': 1,
 @click.option('--cluster-id', default='demo', show_default=True,
               help='cluster identifier (used for assigning ec2 tags, naming security groups, and is used as a subdomain of the r53-zone for environment dns entries')
 @click.option('--env-size', type=click.Choice(env_sizes),
-              default='xsmall', help='Environment size',
+              default='tiny', help='Environment size',
               show_default=True)
 @click.option('--region', default='us-east-1', help='ec2 region',
               show_default=True)
