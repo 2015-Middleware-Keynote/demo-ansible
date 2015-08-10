@@ -73,6 +73,8 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
 
     # TODO: refresh the inventory cache to prevent stale hosts from
     # interferring with re-running
+    command='inventory/aws/hosts/ec2.py --refresh-cache'
+    os.system(command)
 
     command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s rhsm_user=%s rhsm_pass=%s\' playbooks/openshift_setup.yml' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, rhsm_user, rhsm_pass)
 
