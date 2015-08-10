@@ -14,6 +14,10 @@
     master_tags: "{{ provider_defaults.ec2.master.tags }}"
     master_security_groups: "{{ provider_defaults.ec2.master.security_groups }}"
   tasks:
+  - fail:
+      msg: required values not set
+    when: ec2_region is not defined or cluster_id is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_instance_type is not defined or r53_host_zone is not defined
+
   - set_fact:
       os_type: master
       security_groups: "{{ master_security_groups }}"

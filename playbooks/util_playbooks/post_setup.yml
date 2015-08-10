@@ -158,17 +158,19 @@
     with_items: service_out.stdout_lines
     when: "'docker-registry' in item"
 
-- name: Node post config
-  hosts: oo_nodes_to_config
-  vars:
-    prime_image: nodejs-010-rhel7
-    prime_tag: latest
-    prime_namespace: cache
-    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
-    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
-  serial: 1
-  tasks:
-  # prime the registry with the nodejs image
-  - command: docker pull openshift3/{{ prime_image }}:{{ prime_tag }}
-  - command: docker tag -f openshift3/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
-  - command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+# TODO: re-enable node priming, currently hangs on docker push waiting for
+# authentication
+#- name: Node post config
+#  hosts: oo_nodes_to_config
+#  vars:
+#    prime_image: nodejs-010-rhel7
+#    prime_tag: latest
+#    prime_namespace: cache
+#    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
+#    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
+#  serial: 1
+#  tasks:
+#  # prime the registry with the nodejs image
+#  - command: docker pull openshift3/{{ prime_image }}:{{ prime_tag }}
+#  - command: docker tag -f openshift3/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+#  - command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
