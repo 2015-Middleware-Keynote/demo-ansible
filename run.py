@@ -44,7 +44,8 @@ env_sizes = {'tiny': 1,
 @click.option('-v', '--verbose', count=True)
 
 def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
-                    instance_type=None, keypair=None, r53_zone=None,
+                    master_instance_type=None, node_instance_type=None,
+                    infra_instance_type=None, keypair=None, r53_zone=None,
                     cluster_id=None, app_dns_prefix=None, rhsm_user=None,
                     rhsm_pass=None, verbose=0):
     click.echo('Configured values:')
@@ -52,7 +53,9 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
     click.echo('\tenv_size: %s' % env_size)
     click.echo('\tregion: %s' % region)
     click.echo('\tami: %s' % ami)
-    click.echo('\tinstance_type: %s' % instance_type)
+    click.echo('\tmaster instance_type: %s' % master_instance_type)
+    click.echo('\tnode_instance_type: %s' % node_instance_type)
+    click.echo('\tinfra_instance_type: %s' % infra_instance_type)
     click.echo('\tkeypair: %s' % keypair)
     click.echo('\tr53_zone: %s' % r53_zone)
     click.echo('\tapp_dns_prefix: %s' % app_dns_prefix)
