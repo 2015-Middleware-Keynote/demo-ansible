@@ -16,7 +16,7 @@
   tasks:
   - fail:
       msg: required values not set
-    when: ec2_region is not defined or cluster_id is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_instance_type is not defined or r53_host_zone is not defined
+    when: ec2_region is not defined or cluster_id is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_master_instance_type is not defined or r53_host_zone is not defined
 
   - set_fact:
       os_type: master
@@ -38,7 +38,7 @@
       image: "{{ ec2_image }}"
       region: "{{ ec2_region }}"
       key_name: "{{ ec2_keypair }}"
-      instance_type: "{{ ec2_instance_type }}"
+      instance_type: "{{ ec2_master_instance_type }}"
       group: "{{ security_groups }}"
       user_data: "{{ lookup('template', '../templates/user_data_master.j2') }}"
       exact_count: 1

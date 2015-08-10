@@ -29,8 +29,10 @@ os_defaults:
   regions:
   - name: infra
     count: 1
+    instance_type: "{{ ec2_infra_instance_type }}"
   - name: demo
     count: "{{ num_app_nodes }}"
+    instance_type: "{{ ec2_node_instance_type }}"
 
 provider_defaults:
   ec2:
