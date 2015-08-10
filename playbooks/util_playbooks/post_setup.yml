@@ -12,6 +12,8 @@
     with_items:
     - regexp: INSECURE_REGISTRY=
       line: INSECURE_REGISTRY='--insecure-registry 0.0.0.0/0'
+    - regexp: GOMAXPROCS=
+      line: GOMAXPROCS={{ ansible_processor_cores }}
     register: docker_conf
 
   - name: restart docker
