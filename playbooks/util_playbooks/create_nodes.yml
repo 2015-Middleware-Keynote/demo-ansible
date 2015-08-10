@@ -17,7 +17,7 @@
   tasks:
   - fail:
       msg: required values not set
-    when: ec2_region is not defined or cluster_id is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_instance_type is not defined or r53_host_zone is not defined or r53_wildcard_zone is not defined
+    when: ec2_region is not defined or cluster_id is not defined or ec2_image is not defined or ec2_keypair is not defined or r53_host_zone is not defined or r53_wildcard_zone is not defined
 
   - set_fact:
       os_type: node
@@ -39,7 +39,7 @@
       image: "{{ ec2_image }}"
       region: "{{ ec2_region }}"
       key_name: "{{ ec2_keypair }}"
-      instance_type: "{{ ec2_instance_type }}"
+      instance_type: "{{ item.instance_type }}"
       group: "{{ security_groups }}"
       user_data: "{{ lookup('template', '../templates/user_data_node.j2') }}"
       exact_count: "{{ item.count }}"
