@@ -33,6 +33,9 @@
 # Finish subscription and repo setup
 - include: util_playbooks/post_register_host.yml
 
+# Yum repo configuration
+- include: util_playbooks/host_repos.yml
+
 # Add the created hosts to groups for configuration
 - hosts: localhost
   connection: local

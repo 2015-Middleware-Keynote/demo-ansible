@@ -38,6 +38,8 @@ env_sizes = {'tiny': 1,
 @click.option('--rhsm-user', prompt=True, help='Red Hat Subscription Management User')
 @click.option('--rhsm-pass', prompt=True, hide_input=True,
               help='Red Hat Subscription Management Password')
+@click.option('--skip-subscription-management', is_flag=True,
+              help='Skip subscription management steps')
 @click.option('--no-confirm', is_flag=True,
               help='Skip confirmation prompt')
 @click.help_option('--help', '-h')
@@ -47,7 +49,8 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
                     master_instance_type=None, node_instance_type=None,
                     infra_instance_type=None, keypair=None, r53_zone=None,
                     cluster_id=None, app_dns_prefix=None, rhsm_user=None,
-                    rhsm_pass=None, verbose=0):
+                    rhsm_pass=None, skip_subscription_management=False,
+                    verbose=0):
     click.echo('Configured values:')
     click.echo('\tcluster_id: %s' % cluster_id)
     click.echo('\tenv_size: %s' % env_size)
@@ -76,7 +79,7 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
     command='inventory/aws/hosts/ec2.py --refresh-cache'
     os.system(command)
 
-    command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s rhsm_user=%s rhsm_pass=%s\' playbooks/openshift_setup.yml' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, rhsm_user, rhsm_pass)
+    command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s rhsm_user=%s rhsm_pass=%s skip_subscription_management=%s\' playbooks/openshift_setup.yml' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, rhsm_user, rhsm_pass, skip_subscription_management)
 
     if verbose > 0:
         command += " -" + "".join(['v']*verbose)

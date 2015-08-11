@@ -11,7 +11,7 @@
   tasks:
   - fail:
       msg: required values not set
-    when: rhsm_user is not defined or rhsm_pass is not defined or cluster_id is not defined and not (skip_subscription_managment | bool)
+    when: cluster_id is not defined
 
   - add_host:
       name: "{{ item }}"
@@ -20,24 +20,24 @@
       groups: oo_hosts_to_register
     with_items: cluster_hosts
 
-- name: Post register host(s)
+- name: Repository configuration
   hosts: oo_hosts_to_register
   tasks:
+  - name: Configure OSE repository
+    copy:
+      src: ../files/ose3.repo
+      dest: /etc/yum.repos.d/ose3.repo
+      mode: 0644
+      owner: root
+      group: root
+    when: skip_subscription_management | bool
+
   - name: Enable rhui extras channel
     command: yum-config-manager --enable rhui-REGION-rhel-server-extras
-    when: not (skip_subscription_management | bool)
-
-  - name: Disable all known rhsm repos
-    command: subscription-manager repos --disable='*'
-    when: not (skip_subscription_management | bool)
-
-  - name: Subscribe only to the ose repo
-    command: subscription-manager repos --enable=rhel-7-server-ose-3.0-rpms
-    when: not (skip_subscription_management | bool)
+    when: skip_subscription_management | bool
 
   - name: Update current package set
     yum:
       name: '*'
       state: latest
-    when: not (skip_subscription_management | bool)
-
+    when: skip_subscription_management | bool

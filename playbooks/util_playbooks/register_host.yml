@@ -11,7 +11,7 @@
   tasks:
   - fail:
       msg: required values not set
-    when: rhsm_user is not defined or rhsm_pass is not defined or cluster_id is not defined
+    when: rhsm_user is not defined or rhsm_pass is not defined or cluster_id is not defined and not (skip_subscription_management | bool)
 
   - add_host:
       name: "{{ item }}"
@@ -24,13 +24,13 @@
   hosts: oo_hosts_to_register
   serial: 1
   tasks:
-
   - name: Enable subscription-manager
     ini_file:
       dest: /etc/yum/pluginconf.d/subscription-manager.conf
       section: main
       option: enabled
       value: 1
+    when: not (skip_subscription_management | bool)
 
   - name: Register host
     redhat_subscription:
@@ -38,3 +38,4 @@
       password: "{{ rhsm_pass }}"
       state: present
       pool: "^(60 Day Supported OpenShift Enterprise|Employee)"
+    when: not (skip_subscription_management | bool)
