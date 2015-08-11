@@ -95,6 +95,10 @@
   - command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --selector='region=infra' --images='{{ registry_image_url }}'"
     when: registry_out | failed
 
+  - command: oc env dc/docker-registry GOMAXPROCS={{ groups['tag_node-region_infra'].0.ansible_processor_cores }}
+
+  - pause: minutes=1
+
   - command: oc get projects
     register: projects
 
