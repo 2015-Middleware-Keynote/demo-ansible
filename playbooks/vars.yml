@@ -8,6 +8,8 @@ identity_providers:
   kind: HTPasswdPasswordIdentityProvider
   filename: /etc/openshift/master/htpasswd
 
+default_password: I@mRedH@t
+
 registry_template: 'registry.access.redhat.com/openshift3/ose-${component}:${version}'
 registry_image_url: 'pmorie/origin-docker-registry:latest'
 preload_images:
@@ -17,6 +19,10 @@ preload_images:
 - openshift3/ose-sti-builder:latest
 - openshift3/ose-docker-builder:latest
 - openshift3/ose-deployer:latest
+- openshift3/ruby-20-rhel7
+- openshift3/mysql-55-rhel7
+- openshift3/php-55-rhel7
+- jboss-eap-6/eap-openshift
 
 hexboard:
   namespace: demo

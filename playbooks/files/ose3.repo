@@ -1,0 +1,5 @@
+[ose3]
+name=OpenShift Enterprise 3
+baseurl=http://repo.openshift3roadshow.com/rhel-7-server-ose-3.0-rpms
+enabled=1
+gpgcheck=1

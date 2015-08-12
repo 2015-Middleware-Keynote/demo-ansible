@@ -12,6 +12,8 @@
     with_items:
     - regexp: INSECURE_REGISTRY=
       line: INSECURE_REGISTRY='--insecure-registry 0.0.0.0/0'
+    - regexp: GOMAXPROCS=
+      line: GOMAXPROCS={{ ansible_processor_cores }}
     register: docker_conf
 
   - name: restart docker
@@ -46,59 +48,89 @@
       name: sketchproxy
       project: default
       region: demo
-  - default_password: I@mRedH@t
   - users:
     - name: demo
       project: demo
     - name: hexboard
       project: hexboard
-  - mock_users:
     - name: cache
       project: cache
   tasks:
   - command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
     with_items: users
 
+  - name: Set default nodeSelector
+    lineinfile:
+      dest: /etc/openshift/master/master-config.yaml
+      state: present
+      regexp: '^  defaultNodeSelector: ""$'
+      line: '  defaultNodeSelector: "region=demo"'
+    notify: restart openshift-master
+
   - command: oc project default
 
-  - command: oc label --overwrite nodes {{ hostvars[item].openshift.common.hostname }} region={{ hostvars[item].openshift_node_labels.region }} zone={{ hostvars[item].openshift_node_labels.zone }}
+  - name: Fix node labels
+    command: oc label --overwrite nodes {{ hostvars[item].openshift.common.hostname }} region={{ hostvars[item].openshift_node_labels.region }} zone={{ hostvars[item].openshift_node_labels.zone }}
     with_items: groups.oo_nodes_to_config
 
-  - command: oadm manage-node --selector="region=master" --schedulable=false
+  - name: Unschedule master
+    command: oadm manage-node --selector="region=master" --schedulable=false
 
-  - command: oadm router --dry-run
+  - name: Set default project nodeselector to be region=infra
+    shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: region=infra' | oc replace -f -"
+
+  - name: Verify whether a router exists or not
+    command: oadm router --dry-run --service-account=router
     register: router_out
     ignore_errors: true
 
-  - file:
+  - name: Create router service account
+    shell: echo '{"kind":"ServiceAccount","apiVersion":"v1","metadata":{"name":"router"}}' | oc create -f -
+    when: router_out | failed
+
+  - name: Add router service account to privileged SCC
+    shell: "oc get scc privileged -o yaml | sed '/.*:build-controller/a - system:serviceaccount:default:router' | oc replace -f -"
+    when: router_out | failed
+
+  - name: Create router cert temporary directory
+    file:
       dest: "~{{ ansible_ssh_user }}/router_certs"
       state: directory
     when: router_out | failed
 
-  - command: "oadm create-server-cert --signer-cert=/etc/openshift/master/ca.crt --signer-key=/etc/openshift/master/ca.key --signer-serial=/etc/openshift/master/ca.serial.txt --hostnames='*.{{ r53_wildcard_zone }}' --cert={{ r53_wildcard_zone }}.crt --key={{ r53_wildcard_zone }}.key"
+  - name: Generate router certificate files
+    command: "oadm create-server-cert --signer-cert=/etc/openshift/master/ca.crt --signer-key=/etc/openshift/master/ca.key --signer-serial=/etc/openshift/master/ca.serial.txt --hostnames='*.{{ r53_wildcard_zone }}' --cert={{ r53_wildcard_zone }}.crt --key={{ r53_wildcard_zone }}.key"
     when: router_out | failed
 
-  - assemble:
+  - name: Assemble router PEM
+    assemble:
       dest: "~{{ ansible_ssh_user }}/{{ r53_wildcard_zone }}.pem"
       src: "~{{ ansible_ssh_user }}/router_certs"
     when: router_out | failed
 
-  - command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/openshift/master/openshift-router.kubeconfig --selector='region=infra' --images='{{ registry_template }}'"
+  - name: Install router
+    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/openshift/master/openshift-router.kubeconfig --service-account=router"
     when: router_out | failed
 
-  - command: oadm registry --dry-run
+  - name: Check whether a registry exists or not
+    command: oadm registry --dry-run
     register: registry_out
     ignore_errors: true
 
-  - command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --selector='region=infra' --images='{{ registry_image_url }}'"
+  - name: Install registry
+    command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
     when: registry_out | failed
+
+  - command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups['tag_node-region_infra'].0].ansible_processor_cores }}
+
+  - pause: minutes=1
 
   - command: oc get projects
     register: projects
 
   - command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}'"
     when: item.project not in projects.stdout
-    with_items: users | union(mock_users)
+    with_items: users
 
   - command: oc project default
 
@@ -108,7 +140,7 @@
 
   - command: oc project default
 
-  - command: oc get dc
+  - command: oc get dc -n {{ hexboard.namespace }}
     register: dcs_out
     failed_when: "hexboard.name not in dcs_out"
     ignore_errors: true
@@ -134,6 +166,7 @@
 
   - command: oc create -f /root/hexboard_template.json
     when: dcs_out | failed
+    ignore_errors: true
 
   # TODO: it appears the build fails sometimes, need to do better validation
   # on the build and attempt 1 or more retries if it fails
@@ -149,7 +182,6 @@
 
   - command: oc project default
 
-
   - command: oc get service
     register: service_out
   - set_fact:
@@ -157,20 +189,30 @@
       registry_port: "{{ item.split().4.split('/').0 }}"
     with_items: service_out.stdout_lines
     when: "'docker-registry' in item"
+  handlers:
+    - name: restart openshift-master
+      service: name=openshift-master state=restarted
 
-# TODO: re-enable node priming, currently hangs on docker push waiting for
-# authentication
-#- name: Node post config
-#  hosts: oo_nodes_to_config
-#  vars:
-#    prime_image: nodejs-010-rhel7
-#    prime_tag: latest
-#    prime_namespace: cache
-#    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
-#    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
-#  serial: 1
-#  tasks:
-#  # prime the registry with the nodejs image
-#  - command: docker pull openshift3/{{ prime_image }}:{{ prime_tag }}
-#  - command: docker tag -f openshift3/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
-#  - command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+- name: Node post config
+  hosts: oo_nodes_to_config
+  vars_files:
+  - ../vars.yml
+  vars:
+    prime_image: nodejs-010-rhel7
+    prime_tag: latest
+    prime_namespace: cache
+    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
+    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
+  serial: 1
+  tasks:
+  - debug: var=hostvars[groups.oo_first_master.0].openshift.master.api_url
+  # prime the registry with the nodejs image
+  - command: docker pull openshift3/{{ prime_image }}:{{ prime_tag }}
+  - command: docker tag -f openshift3/{{prime_image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+
+  - command: oc login --insecure-skip-tls-verify -u cache -p {{ default_password }} {{ hostvars[groups.oo_first_master.0].openshift.master.api_url }}
+  - command: oc whoami -t
+    register: token_result
+  - command: docker login -u cache -e cache@cache.cache -p {{ token_result.stdout }} {{ registry_ip }}:{{ registry_port }}
+  - command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ prime_image }}:{{ prime_tag }}
+  - command: docker logout
