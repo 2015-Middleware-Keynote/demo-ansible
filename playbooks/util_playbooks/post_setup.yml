@@ -1,5 +1,9 @@
 # vim: set ft=ansible:
 ---
+- name: Verify hosts in the infra region have core ansible facts
+  hosts: tag_node-region_infra
+  tasks:
+
 - name: Node post config
   hosts: oo_nodes_to_config
   vars_files:
