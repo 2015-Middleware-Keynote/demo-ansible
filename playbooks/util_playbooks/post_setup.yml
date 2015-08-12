@@ -154,13 +154,7 @@
     register: projects
 
   - name: Create projects for internal users
-    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}'"
-    when: item.project not in projects.stdout
-    with_items: users
-
-  - command: oc project default
-
-  - command: oadm policy add-role-to-user admin {{ item.name }} -n {{ item.project }}
+    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}' --admin='{{ item.name }}'"
     when: item.project not in projects.stdout
     with_items: users
 
