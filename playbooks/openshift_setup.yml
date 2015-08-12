@@ -61,6 +61,7 @@
       osm_cluster_network_cidr: 10.0.0.0/8
       osm_host_subnet_length: 16
       osm_default_subdomain: "{{ r53_wildcard_zone }}"
+      osm_default_node_selector: "region={{ os_defaults.regions.1.name }}"
     with_items: master_hosts
   - add_host:
       name: "{{ item }}"
