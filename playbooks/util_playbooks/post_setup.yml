@@ -1,8 +1,19 @@
 # vim: set ft=ansible:
 ---
-- name: Verify hosts in the infra region have core ansible facts
-  hosts: tag_node-region_infra
+- name: Create group for infra hosts in this env only
+  hosts: localhost
+  gather_facts: no
+  connection: local
+  sudo: no
+  vars:
+    infra_hosts: "{{ groups['tag_node-region_infra'] | intersect(groups['tag_env_' ~ cluster_id]) }}"
   tasks:
+  - add_host:
+      name: "{{ infra_hosts.0 }}"
+      groups: oo_first_infra_node
+
+- name: Verify hosts in the infra region have core ansible facts
+  hosts: oo_first_infra_node
 
 - name: Node post config
   hosts: oo_nodes_to_config
@@ -118,7 +129,7 @@
     command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
     when: registry_out | failed
 
-  - command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups['tag_node-region_infra'].0].ansible_processor_cores }}
+  - command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_first_infra_node.0].ansible_processor_cores }}
 
   - pause: minutes=1
 
