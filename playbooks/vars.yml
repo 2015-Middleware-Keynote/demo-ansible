@@ -24,6 +24,12 @@ preload_images:
 - openshift3/php-55-rhel7
 - jboss-eap-6/eap-openshift
 
+prime_user: cache
+prime_namespace: cache
+prime_images:
+- image: nodejs-010-rhel7
+  tag: latest
+
 hexboard:
   namespace: demo
   watch_namespace: demo
