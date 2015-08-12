@@ -43,18 +43,19 @@
   vars_files:
   - ../vars.yml
   vars:
-  - proxy:
+    proxy:
       app_name: sketch
       name: sketchproxy
       project: default
       region: demo
-  - users:
+    users:
     - name: demo
       project: demo
     - name: hexboard
       project: hexboard
     - name: "{{ prime_user }}"
       project: "{{ prime_namespace }}"
+    default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
   tasks:
   - command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
     with_items: users
@@ -173,11 +174,7 @@
   - command: oc start-build {{ hexboard.name }}
     when: dcs_out | failed
 
-  - script: ../files/get_context.sh
-    register: default_context
-    when: dcs_out | failed
-
-  - command: oc config use-context {{ default_context.stdout }}
+  - command: "oc config use-context {{ default_context }}"
     when: dcs_out | failed
 
   - command: oc project default
@@ -200,6 +197,7 @@
   vars:
     registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
     registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
+    default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
   serial: 1
   tasks:
   - command: docker pull openshift3/{{ item.image }}:{{ item.tag }}
@@ -213,11 +211,7 @@
   - command: oc whoami -t
     register: token_result
 
-  - script: ../files/get_context.sh
-    register: default_context
-    when: inventory_hostname == groups.oo_first_master.0
-
-  - command: oc config use-context {{ default_context.stdout }}
+  - command: "oc config use-context {{ default_context }}"
     when: inventory_hostname == groups.oo_first_master.0
 
   - command: oc project default
