@@ -29,10 +29,13 @@ prime_namespace: cache
 prime_images:
 - image: nodejs-010-rhel7
   tag: latest
+  prefix: openshift3
 - image: php-55-rhel7
   tag: latest
+  prefix: openshift3
 - image: eap-openshift
   tag: latest
+  prefix: jboss-eap-6
 
 hexboard:
   namespace: demo
