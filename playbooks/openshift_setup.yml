@@ -84,4 +84,8 @@
     g_masters_group: oo_masters_to_config
     g_nodes_group: oo_nodes_to_config
 
+# Router, Registry, internal users and projects, priming
 - include: util_playbooks/post_setup.yml
+
+# Smoke projects
+- include: util_playbooks/smoke_projects.yml

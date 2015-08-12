@@ -147,14 +147,18 @@
     command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
     when: registry_out | failed
 
-  - command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_first_infra_node.0].ansible_processor_cores }}
+  - name: Set registry GOMAXPROCS
+    command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_first_infra_node.0].ansible_processor_cores }}
 
-  - pause: minutes=1
+  - name: Wait for 60 seconds for registry to re-deploy
+    pause: minutes=1
 
-  - command: oc get projects
+  - name: Find current projects list
+    command: oc get projects
     register: projects
 
-  - command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}'"
+  - name: Create projects for internal users
+    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}'"
     when: item.project not in projects.stdout
     with_items: users
 
