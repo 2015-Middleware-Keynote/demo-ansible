@@ -95,7 +95,7 @@
       hostname: "openshift-node-{{ item.0.item.name }}-{{ item.1.id.split('-').1 }}.{{ r53_host_zone }}"
       ansible_ssh_user: openshift
       ansible_ssh_host: "{{ item.1.dns_name }}"
-      groups: "{{ instance_groups | join(', ') }}"
+      groups: "{{ instance_groups | union(['tag_node-region_' ~ item.0.item.name]) | join(', ') }}"
       ec2_private_ip_address: "{{ item.1.private_ip }}"
       ec2_ip_address: "{{ item.1.public_ip }}"
       ec2_tag_node-region: "{{ item.0.item.name | default(omit) }}"

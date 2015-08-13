@@ -1,5 +1,20 @@
 # vim: set ft=ansible:
 ---
+- name: Create group for infra hosts in this env only
+  hosts: localhost
+  gather_facts: no
+  connection: local
+  sudo: no
+  vars:
+    infra_hosts: "{{ groups['tag_node-region_infra'] | intersect(groups['tag_env_' ~ cluster_id]) }}"
+  tasks:
+  - add_host:
+      name: "{{ infra_hosts.0 }}"
+      groups: oo_first_infra_node
+
+- name: Verify hosts in the infra region have core ansible facts
+  hosts: oo_first_infra_node
+
 - name: Node post config
   hosts: oo_nodes_to_config
   vars_files:
@@ -34,9 +49,22 @@
       state: present
       create: yes
 
+  # Temporary workaround until openshift-ansible supports setting
+  # kubeletArguments directly
+  - name: Set kubeletArguments
+    lineinfile:
+      dest: /etc/openshift/node/node-config.yaml
+      state: present
+      regexp: '^kubeletArguments:'
+      line: 'kubeletArguments: { max-pods: ["100"] }'
+    notify: restart openshift-node
+
   - name: pre-pull images
     command: "docker pull {{ item }}"
     with_items: preload_images
+  handlers:
+    - name: restart openshift-node
+      service: name=openshift-node state=restarted
 
 - name: First master post config
   hosts: oo_first_master
@@ -59,14 +87,6 @@
   tasks:
   - command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
     with_items: users
-
-  - name: Set default nodeSelector
-    lineinfile:
-      dest: /etc/openshift/master/master-config.yaml
-      state: present
-      regexp: '^  defaultNodeSelector: ""$'
-      line: '  defaultNodeSelector: "region=demo"'
-    notify: restart openshift-master
 
   - command: oc project default
 
@@ -122,7 +142,7 @@
     command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
     when: registry_out | failed
 
-  - command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups['tag_node-region_infra'].0].ansible_processor_cores }}
+  - command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_first_infra_node.0].ansible_processor_cores }}
 
   - pause: minutes=1
 
