@@ -28,7 +28,7 @@
   shell: "oc get rc --all-namespaces | grep smoke | wc -l"
   register: build_output
   until: build_output.stdout.find("41") != -1
-  retries: 11
+  retries: 15
   delay: 30
 
 - name: Scale smoke app
