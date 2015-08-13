@@ -89,10 +89,6 @@
     command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
     with_items: users
 
-  - name: Create the 40 workshop users
-    command: "htpasswd -b /etc/openshift/master/htpasswd {{ item }} {{ default_password }}"
-    with_sequence: start=0 end=40 format=user%02x
-
   - command: oc project default
 
   - name: Fix node labels
