@@ -49,9 +49,11 @@ os_defaults:
   - name: infra
     count: 1
     instance_type: "{{ ec2_infra_instance_type }}"
+    disk: 60
   - name: demo
     count: "{{ num_app_nodes }}"
     instance_type: "{{ ec2_node_instance_type }}"
+    disk: 30
 
 provider_defaults:
   ec2:
