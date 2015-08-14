@@ -84,4 +84,14 @@
     g_masters_group: oo_masters_to_config
     g_nodes_group: oo_nodes_to_config
 
+# Router, Registry, internal users and projects, priming
 - include: util_playbooks/post_setup.yml
+
+# Smoke projects
+- name: Setting up smoke projects...
+  hosts: oo_first_master
+  vars_files:
+  - vars.yml
+  tasks:
+  - include: tasks/smoke_projects.yml
+    when: run_smoke_tests | bool

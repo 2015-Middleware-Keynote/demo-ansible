@@ -8,7 +8,7 @@ identity_providers:
   kind: HTPasswdPasswordIdentityProvider
   filename: /etc/openshift/master/htpasswd
 
-default_password: I@mRedH@t
+default_password: "{{ cluster_id }}"
 
 registry_template: 'registry.access.redhat.com/openshift3/ose-${component}:${version}'
 registry_image_url: 'pmorie/origin-docker-registry:latest'
@@ -19,16 +19,23 @@ preload_images:
 - openshift3/ose-sti-builder:latest
 - openshift3/ose-docker-builder:latest
 - openshift3/ose-deployer:latest
-- openshift3/ruby-20-rhel7
-- openshift3/mysql-55-rhel7
-- openshift3/php-55-rhel7
-- jboss-eap-6/eap-openshift
+- openshift3/mongodb-24-rhel7:latest
+- openshift3/php-55-rhel7:latest
+- jboss-eap-6/eap-openshift:latest
+- kubernetes/guestbook:latest
 
 prime_user: cache
 prime_namespace: cache
 prime_images:
 - image: nodejs-010-rhel7
   tag: latest
+  prefix: openshift3
+- image: php-55-rhel7
+  tag: latest
+  prefix: openshift3
+- image: eap-openshift
+  tag: latest
+  prefix: jboss-eap-6
 
 hexboard:
   namespace: demo
@@ -42,9 +49,11 @@ os_defaults:
   - name: infra
     count: 1
     instance_type: "{{ ec2_infra_instance_type }}"
+    disk: 60
   - name: demo
     count: "{{ num_app_nodes }}"
     instance_type: "{{ ec2_node_instance_type }}"
+    disk: 30
 
 provider_defaults:
   ec2:

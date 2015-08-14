@@ -85,7 +85,8 @@
       project: "{{ prime_namespace }}"
     default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
   tasks:
-  - command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
+  - name: Create the default users
+    command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
     with_items: users
 
   - command: oc project default
@@ -97,7 +98,7 @@
   - name: Unschedule master
     command: oadm manage-node --selector="region=master" --schedulable=false
 
-  - name: Set default project nodeselector to be region=infra
+  - name: Set nodeselector for the default project to be region=infra
     shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: region=infra' | oc replace -f -"
 
   - name: Verify whether a router exists or not
@@ -142,20 +143,18 @@
     command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
     when: registry_out | failed
 
-  - command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_first_infra_node.0].ansible_processor_cores }}
+  - name: Set registry GOMAXPROCS
+    command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_first_infra_node.0].ansible_processor_cores }}
 
-  - pause: minutes=1
+  - name: Wait for 60 seconds for registry to re-deploy
+    pause: minutes=1
 
-  - command: oc get projects
+  - name: Find current projects list
+    command: oc get projects
     register: projects
 
-  - command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}'"
-    when: item.project not in projects.stdout
-    with_items: users
-
-  - command: oc project default
-
-  - command: oadm policy add-role-to-user admin {{ item.name }} -n {{ item.project }}
+  - name: Create projects for internal users
+    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}' --admin='{{ item.name }}'"
     when: item.project not in projects.stdout
     with_items: users
 
@@ -189,8 +188,6 @@
     when: dcs_out | failed
     ignore_errors: true
 
-  # TODO: it appears the build fails sometimes, need to do better validation
-  # on the build and attempt 1 or more retries if it fails
   - command: oc start-build {{ hexboard.name }}
     when: dcs_out | failed
 
@@ -220,10 +217,10 @@
     default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
   serial: 1
   tasks:
-  - command: docker pull openshift3/{{ item.image }}:{{ item.tag }}
+  - command: docker pull {{ item.prefix }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
 
-  - command: docker tag -f openshift3/{{item.image}} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
+  - command: docker tag -f {{ item.prefix }}/{{ item.image }} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
 
   - command: oc login --insecure-skip-tls-verify -u {{ prime_user }} -p {{ default_password }} {{ hostvars[groups.oo_first_master.0].openshift.master.api_url }}
