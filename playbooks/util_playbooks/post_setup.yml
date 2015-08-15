@@ -24,11 +24,8 @@
       name: "{{ demo_hosts.0 }}"
       groups: oo_demo_nodes
 
-- name: Verify hosts in the infra region have core ansible facts
-  hosts: oo_infra_nodes
-
-- name: Verify hosts in the demo region have core ansible facts
-  hosts: oo_demo_nodes
+- name: Verify node host groups have core ansible facts
+  hosts: oo_infra_nodes:oo_demo_nodes
 
 - name: Node post config
   hosts: oo_nodes_to_config
@@ -63,16 +60,6 @@
       line: prepend domain-name-servers {{ hostvars[groups.oo_first_master.0].openshift.dns.ip }}
       state: present
       create: yes
-
-  # Temporary workaround until openshift-ansible supports setting
-  # kubeletArguments directly
-  - name: Set kubeletArguments
-    lineinfile:
-      dest: /etc/openshift/node/node-config.yaml
-      state: present
-      regexp: '^kubeletArguments:'
-      line: 'kubeletArguments: { max-pods: ["100"] }'
-    notify: restart openshift-node
 
   - name: pre-pull images
     command: "docker pull {{ item }}"
