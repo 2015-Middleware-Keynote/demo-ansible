@@ -9,7 +9,7 @@ identity_providers:
   filename: /etc/openshift/master/htpasswd
 
 registry_template: 'registry.access.redhat.com/openshift3/ose-${component}:${version}'
-registry_image_url: 'pmorie/origin-docker-registry:latest'
+registry_image_url: 'ncdc/origin-docker-registry:roadshow'
 preload_images:
 - openshift3/nodejs-010-rhel7:latest
 - openshift3/ose-pod:latest
