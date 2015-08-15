@@ -91,13 +91,6 @@
 
   - command: oc project default
 
-  - name: Fix node labels
-    command: oc label --overwrite nodes {{ hostvars[item].openshift.common.hostname }} region={{ hostvars[item].openshift_node_labels.region }} zone={{ hostvars[item].openshift_node_labels.zone }}
-    with_items: groups.oo_nodes_to_config
-
-  - name: Unschedule master
-    command: oadm manage-node --selector="region=master" --schedulable=false
-
   - name: Set nodeselector for the default project to be region=infra
     shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: region=infra' | oc replace -f -"
 
