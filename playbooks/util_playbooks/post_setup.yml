@@ -10,10 +10,25 @@
   tasks:
   - add_host:
       name: "{{ infra_hosts.0 }}"
-      groups: oo_first_infra_node
+      groups: oo_infra_nodes
+
+- name: Create group for demo hosts in this env only
+  hosts: localhost
+  gather_facts: no
+  connection: local
+  sudo: no
+  vars:
+    demo_hosts: "{{ groups['tag_node-region_demo'] | intersect(groups['tag_env_' ~ cluster_id]) }}"
+  tasks:
+  - add_host:
+      name: "{{ demo_hosts.0 }}"
+      groups: oo_demo_nodes
 
 - name: Verify hosts in the infra region have core ansible facts
-  hosts: oo_first_infra_node
+  hosts: oo_infra_nodes
+
+- name: Verify hosts in the demo region have core ansible facts
+  hosts: oo_demo_nodes
 
 - name: Node post config
   hosts: oo_nodes_to_config
@@ -137,7 +152,7 @@
     when: registry_out | failed
 
   - name: Set registry GOMAXPROCS
-    command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_first_infra_node.0].ansible_processor_cores }}
+    command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_infra_nodes.0].ansible_processor_cores }}
 
   - name: Wait for 60 seconds for registry to re-deploy
     pause: minutes=1
@@ -201,14 +216,13 @@
       service: name=openshift-master state=restarted
 
 - name: Node post config
-  hosts: oo_nodes_to_config
+  hosts: oo_demo_nodes[0]
   vars_files:
   - ../vars.yml
   vars:
     registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
     registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
     default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
-  serial: 1
   tasks:
   - command: docker pull {{ item.prefix }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
