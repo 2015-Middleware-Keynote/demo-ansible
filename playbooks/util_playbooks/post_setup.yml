@@ -158,7 +158,7 @@
     failed_when: "hexboard.name not in dcs_out"
     ignore_errors: true
 
-  - command: oc login -u {{ users.0.name }} -p {{ default_password }}
+  - command: oc login -u {{ users.0.name }} -p {{ default_password }} --certificate-authority=/etc/openshift/master/ca.crt
     when: dcs_out | failed
 
   - script: ../files/get_token.sh
