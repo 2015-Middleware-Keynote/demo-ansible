@@ -25,9 +25,9 @@
   with_sequence: start=0 end={{ num_smoke_test_users }} format=user%02d
 
 - name: Wait to scale smoke app for first deployment
-  shell: "oc get rc --all-namespaces | grep smoke | wc -l"
+  shell: "oc get rc --all-namespaces | grep smoke"
   register: build_output
-  until: build_output.stdout.find("41") != -1
+  until: build_output.stdout.split('\n') | length == num_smoke_test_users + 1
   retries: 15
   delay: 30
 
