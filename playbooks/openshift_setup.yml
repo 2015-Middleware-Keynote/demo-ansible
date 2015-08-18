@@ -79,7 +79,7 @@
         zone: default
       openshift_node_kubelet_args:
         max-pods:
-        - 100
+        - "100"
     with_items: node_hosts
 
 # Configure the instances
