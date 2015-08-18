@@ -27,7 +27,7 @@
 - name: Wait to scale smoke app for first deployment
   shell: "oc get rc --all-namespaces | grep smoke"
   register: build_output
-  until: build_output.stdout.split('\n') | length == num_smoke_test_users + 1
+  until: (build_output.stdout.split('\n') | length) == ((num_smoke_test_users | int) + 1)
   retries: 15
   delay: 30
 
