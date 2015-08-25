@@ -13,7 +13,6 @@ registry_image_url: 'ncdc/origin-docker-registry:roadshow'
 preload_images:
 - openshift3/nodejs-010-rhel7:latest
 - openshift3/ose-pod:latest
-- openshift3/ose-sti-image-builder:latest
 - openshift3/ose-sti-builder:latest
 - openshift3/ose-docker-builder:latest
 - openshift3/ose-deployer:latest
