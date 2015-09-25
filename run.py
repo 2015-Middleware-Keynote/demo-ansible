@@ -35,9 +35,11 @@ env_sizes = {'tiny': 1,
               help='route53 hosted zone (must be pre-configured)')
 @click.option('--app-dns-prefix', default='apps', help='application dns prefix',
               show_default=True)
-@click.option('--console-port', default='8443', type=int, help='openshift web console port',
+@click.option('--deployment-type', default='enterprise', help='openshift deployment type',
               show_default=True)
-@click.option('--api-port', default='8443', type=int, help='openshift api port',
+@click.option('--api-port', default='443', type=int, help='openshift api port',
+              show_default=True)
+@click.option('--console-port', default='443', type=int, help='openshift web console port',
               show_default=True)
 @click.option('--rhsm-user', prompt=True, help='Red Hat Subscription Management User')
 @click.option('--rhsm-pass', prompt=True, hide_input=True,
@@ -57,8 +59,9 @@ env_sizes = {'tiny': 1,
 def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
                     master_instance_type=None, node_instance_type=None,
                     infra_instance_type=None, keypair=None, r53_zone=None,
-                    cluster_id=None, app_dns_prefix=None, api_port=8443, 
-                    console_port=8443, rhsm_user=None, rhsm_pass=None, 
+                    cluster_id=None, app_dns_prefix=None,
+                    deployment_type=None, console_port=443, api_port=443,
+                    rhsm_user=None, rhsm_pass=None,
                     skip_subscription_management=False, run_smoke_tests=False, 
                     num_smoke_test_users=None, default_password=None, verbose=0):
     click.echo('Configured values:')
@@ -72,6 +75,7 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
     click.echo('\tkeypair: %s' % keypair)
     click.echo('\tr53_zone: %s' % r53_zone)
     click.echo('\tapp_dns_prefix: %s' % app_dns_prefix)
+    click.echo('\tdeployment_type: %s' % deployment_type)
     click.echo('\tmaster api port: %s' % api_port)
     click.echo('\tmaster web console port: %s' % console_port)
     click.echo('\trhsm_user: %s' % rhsm_user)
@@ -94,7 +98,7 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
     command='inventory/aws/hosts/ec2.py --refresh-cache'
     os.system(command)
 
-    command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s api_port=%s console_port=%s rhsm_user=%s rhsm_pass=%s skip_subscription_management=%s run_smoke_tests=%s num_smoke_test_users=%s default_password=%s\' playbooks/openshift_setup.yml' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, api_port, console_port, rhsm_user, rhsm_pass, skip_subscription_management, run_smoke_tests, num_smoke_test_users, default_password)
+    command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s deployment_type=%s api_port=%s console_port=%s rhsm_user=%s rhsm_pass=%s skip_subscription_management=%s run_smoke_tests=%s num_smoke_test_users=%s default_password=%s\' playbooks/openshift_setup.yml' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, deployment_type, api_port, console_port, rhsm_user, rhsm_pass, skip_subscription_management, run_smoke_tests, num_smoke_test_users, default_password)
 
     if verbose > 0:
         command += " -" + "".join(['v']*verbose)

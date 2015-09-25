@@ -1,6 +1,5 @@
 ---
 debug_level: 3
-deployment_type: enterprise
 identity_providers:
 - name: htpasswd_auth
   login: true

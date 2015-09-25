@@ -99,14 +99,6 @@
     register: router_out
     ignore_errors: true
 
-  - name: Create router service account
-    shell: echo '{"kind":"ServiceAccount","apiVersion":"v1","metadata":{"name":"router"}}' | oc create -f -
-    when: router_out | failed
-
-  - name: Add router service account to privileged SCC
-    shell: "oc get scc privileged -o yaml | sed '/.*:build-controller/a - system:serviceaccount:default:router' | oc replace -f -"
-    when: router_out | failed
-
   - name: Create router cert temporary directory
     file:
       dest: "~{{ ansible_ssh_user }}/router_certs"
