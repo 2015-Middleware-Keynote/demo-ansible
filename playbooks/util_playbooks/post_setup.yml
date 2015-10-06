@@ -181,11 +181,12 @@
 
   - command: oc project default
 
-  - command: oc get service docker-registry -t '{{.spec.clusterIP}}:{{index .spec.ports 0 "port"}}'
-    register: registry_uri
+  - command: oc get service docker-registry -t "{% raw %}{{ .spec.portalIP }}:{{ with index .spec.ports 0 }}{{ .port }}{{ end }}{% endraw %}"
+    register: registry_uri_out
+
   - set_fact:
-      registry_uri: "{{ registry_uri.stdout }}"
-    with_items: registry_uri
+      registry_uri: "{{ registry_uri_out.stdout }}"
+
   handlers:
     - name: restart openshift-master
       service: name=openshift-master state=restarted
