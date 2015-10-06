@@ -181,13 +181,11 @@
 
   - command: oc project default
 
-  - command: oc get service
-    register: service_out
+  - command: oc get service docker-registry -t '{{.spec.clusterIP}}:{{index .spec.ports 0 "port"}}'
+    register: registry_uri
   - set_fact:
-      registry_ip: "{{ item.split().3 }}"
-      registry_port: "{{ item.split().4.split('/').0 }}"
-    with_items: service_out.stdout_lines
-    when: "'docker-registry' in item"
+      registry_uri: "{{ registry_uri.stdout }}"
+    with_items: registry_uri
   handlers:
     - name: restart openshift-master
       service: name=openshift-master state=restarted
@@ -197,14 +195,13 @@
   vars_files:
   - ../vars.yml
   vars:
-    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
-    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
+    registry_uri: "{{ hostvars[groups.oo_first_master.0].registry_uri }}"
     default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
   tasks:
   - command: docker pull {{ item.prefix }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
 
-  - command: docker tag -f {{ item.prefix }}/{{ item.image }} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
+  - command: docker tag -f {{ item.prefix }}/{{ item.image }} {{ registry_uri }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
 
   - command: oc login --insecure-skip-tls-verify -u {{ prime_user }} -p {{ default_password }} {{ hostvars[groups.oo_first_master.0].openshift.master.api_url }}
@@ -218,9 +215,9 @@
   - command: oc project default
     when: inventory_hostname == groups.oo_first_master.0
 
-  - command: docker login -u {{ prime_user }} -e {{ prime_user }}@{{ prime_namespace }}.local -p {{ token_result.stdout }} {{ registry_ip }}:{{ registry_port }}
+  - command: docker login -u {{ prime_user }} -e {{ prime_user }}@{{ prime_namespace }}.local -p {{ token_result.stdout }} {{ registry_uri }}
 
-  - command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
+  - command: docker push {{ registry_uri }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
 
   - command: docker logout
