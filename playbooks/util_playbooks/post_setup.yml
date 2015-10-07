@@ -181,7 +181,13 @@
 
   - command: oc project default
 
-  - command: oc get service docker-registry -t "{% raw %}{{ .spec.portalIP }}:{{ with index .spec.ports 0 }}{{ .port }}{{ end }}{% endraw %}"
+  # because of a bug in Ansible and Jinja templating, we have to do this as a script
+  - name: Deploy registry inspection script
+    template:
+      dest: /tmp/registry.sh
+      src: ../templates/registry.sh.j2
+
+  - script: /tmp/registry.sh
     register: registry_uri_out
 
   - set_fact:

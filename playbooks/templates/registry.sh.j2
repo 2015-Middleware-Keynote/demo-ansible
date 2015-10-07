@@ -1,0 +1,1 @@
+oc get service docker-registry -t {{"'{{ .spec.portalIP }}:{{ with index .spec.ports 0 }}{{ .port }}{{ end }}'"}}
