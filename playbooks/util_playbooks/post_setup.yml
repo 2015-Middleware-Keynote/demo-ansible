@@ -99,14 +99,6 @@
     register: router_out
     ignore_errors: true
 
-  - name: Create router service account
-    shell: echo '{"kind":"ServiceAccount","apiVersion":"v1","metadata":{"name":"router"}}' | oc create -f -
-    when: router_out | failed
-
-  - name: Add router service account to privileged SCC
-    shell: "oc get scc privileged -o yaml | sed '/.*:build-controller/a - system:serviceaccount:default:router' | oc replace -f -"
-    when: router_out | failed
-
   - name: Create router cert temporary directory
     file:
       dest: "~{{ ansible_ssh_user }}/router_certs"
@@ -189,13 +181,18 @@
 
   - command: oc project default
 
-  - command: oc get service
-    register: service_out
+  # because of a bug in Ansible and Jinja templating, we have to do this as a script
+  - name: Deploy registry inspection script
+    template:
+      dest: /tmp/registry.sh
+      src: ../templates/registry.sh.j2
+
+  - shell: /tmp/registry.sh
+    register: registry_uri_out
+
   - set_fact:
-      registry_ip: "{{ item.split().3 }}"
-      registry_port: "{{ item.split().4.split('/').0 }}"
-    with_items: service_out.stdout_lines
-    when: "'docker-registry' in item"
+      registry_uri: "{{ registry_uri_out.stdout }}"
+
   handlers:
     - name: restart openshift-master
       service: name=openshift-master state=restarted
@@ -205,14 +202,13 @@
   vars_files:
   - ../vars.yml
   vars:
-    registry_ip: "{{ hostvars[groups.oo_first_master.0].registry_ip }}"
-    registry_port: "{{ hostvars[groups.oo_first_master.0].registry_port }}"
+    registry_uri: "{{ hostvars[groups.oo_first_master.0].registry_uri }}"
     default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
   tasks:
   - command: docker pull {{ item.prefix }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
 
-  - command: docker tag -f {{ item.prefix }}/{{ item.image }} {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
+  - command: docker tag -f {{ item.prefix }}/{{ item.image }} {{ registry_uri }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
 
   - command: oc login --insecure-skip-tls-verify -u {{ prime_user }} -p {{ default_password }} {{ hostvars[groups.oo_first_master.0].openshift.master.api_url }}
@@ -226,9 +222,9 @@
   - command: oc project default
     when: inventory_hostname == groups.oo_first_master.0
 
-  - command: docker login -u {{ prime_user }} -e {{ prime_user }}@{{ prime_namespace }}.local -p {{ token_result.stdout }} {{ registry_ip }}:{{ registry_port }}
+  - command: docker login -u {{ prime_user }} -e {{ prime_user }}@{{ prime_namespace }}.local -p {{ token_result.stdout }} {{ registry_uri }}
 
-  - command: docker push {{ registry_ip }}:{{ registry_port }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
+  - command: docker push {{ registry_uri }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
     with_items: prime_images
 
   - command: docker logout
