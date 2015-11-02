@@ -187,7 +187,7 @@
       dest: /tmp/registry.sh
       src: ../templates/registry.sh.j2
 
-  - shell: /tmp/registry.sh
+  - shell: /usr/bin/bash /tmp/registry.sh
     register: registry_uri_out
 
   - set_fact:
