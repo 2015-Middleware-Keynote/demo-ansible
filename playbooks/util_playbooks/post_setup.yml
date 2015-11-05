@@ -186,6 +186,7 @@
     template:
       dest: /tmp/registry.sh
       src: ../templates/registry.sh.j2
+      mode: 0755
 
   - shell: /usr/bin/bash /tmp/registry.sh
     register: registry_uri_out
