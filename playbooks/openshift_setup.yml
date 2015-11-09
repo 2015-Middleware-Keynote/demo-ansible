@@ -88,6 +88,7 @@
 - include: ../../openshift-ansible/playbooks/common/openshift-cluster/config.yml
   vars:
     g_etcd_group: oo_etcd_to_config
+    g_lb_group: oo_lb_to_config
     g_masters_group: oo_masters_to_config
     g_nodes_group: oo_nodes_to_config
 
