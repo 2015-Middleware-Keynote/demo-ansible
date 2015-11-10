@@ -12,6 +12,7 @@ cloud_config_modules:
 
 mounts:
 - [ /dev/xvdb, /var/lib/openshift, xfs, "defaults" ]
+- [ /dev/xvdc ]
 
 disk_setup:
   /dev/xvdb:
@@ -25,6 +26,11 @@ fs_setup:
   partition: auto
 
 write_files:
+- content: |
+    DEVS='/dev/xvdc'
+    VG=docker_vg
+  path: /etc/sysconfig/docker-storage-setup
+  owner: root:root
 - path: /etc/sudoers.d/99-openshift-cloud-init-requiretty
   permissions: 440
   content: |
