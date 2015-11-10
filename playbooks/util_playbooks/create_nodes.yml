@@ -46,16 +46,7 @@
       wait: yes
       count_tag: "{{ instance_tags | oo_dict_merge({'node-region': item.name}) }}"
       instance_tags: "{{ instance_tags | oo_dict_merge({'node-region': item.name}) }}"
-      volumes: 
-        - volume_size: "{{ item.disk }}"
-          device_type: io1
-          iops: "{{ item.disk * 30 }}"
-          device_name: /dev/sda1
-          delete_on_termination: True
-        - device_name: /dev/xvdb
-          device_type: gp2
-          volume_size: 25
-          delete_on_termination: True
+      volumes: "{{ volumes }}"
       vpc_subnet_id: "{{ vpc_subnet_id }}"
       assign_public_ip: yes
     register: ec2

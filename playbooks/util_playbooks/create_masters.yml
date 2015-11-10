@@ -32,6 +32,10 @@
         device_type: gp2
         volume_size: 25
         delete_on_termination: True
+      - device_name: /dev/xvdc
+        device_type: gp2
+        volume_size: 25
+        delete_on_termination: True
 
   - name: Create ec2 instance
     ec2:

@@ -82,6 +82,7 @@
       openshift_node_kubelet_args:
         max-pods:
         - "100"
+      openshift_node_sdn_mtu: 1450
     with_items: node_hosts
 
 # Configure the instances
