@@ -5,11 +5,12 @@ identity_providers:
   login: true
   challenge: true
   kind: HTPasswdPasswordIdentityProvider
-  filename: /etc/openshift/master/htpasswd
+  filename: /etc/origin/master/htpasswd
 
-registry_template: 'registry.access.redhat.com/openshift3/ose-${component}:${version}'
 #registry_image_url: 'ncdc/origin-docker-registry:roadshow'
-registry_image_url: 'openshift3/ose-docker-registry'
+registry_image_url: "openshift3/ose-${component}:${version}"
+router_image_url: "openshift3/ose-${component}:${version}"
+
 preload_images:
 - openshift3/nodejs-010-rhel7:latest
 - openshift3/ose-pod:latest

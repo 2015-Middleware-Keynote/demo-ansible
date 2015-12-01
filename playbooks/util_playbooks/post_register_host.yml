@@ -32,7 +32,7 @@
     when: not (skip_subscription_management | bool)
 
   - name: Subscribe only to the ose repo
-    command: subscription-manager repos --enable=rhel-7-server-ose-3.0-rpms
+    command: subscription-manager repos --enable=rhel-7-server-ose-3.1-rpms
     when: not (skip_subscription_management | bool)
 
   - name: Update current package set
