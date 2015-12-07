@@ -22,6 +22,7 @@
 
 - name: Post register host(s)
   hosts: oo_hosts_to_register
+  serial: 1
   tasks:
   - name: Enable rhui extras channel
     command: yum-config-manager --enable rhui-REGION-rhel-server-extras
