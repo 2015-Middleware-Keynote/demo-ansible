@@ -36,6 +36,9 @@
     command: subscription-manager repos --enable=rhel-7-server-ose-3.1-rpms
     when: not (skip_subscription_management | bool)
 
+- name: Software update
+  hosts: oo_hosts_to_register
+  tasks:
   - name: Update current package set
     yum:
       name: '*'
