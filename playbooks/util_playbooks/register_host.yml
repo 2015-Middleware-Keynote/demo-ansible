@@ -37,5 +37,5 @@
       username: "{{ rhsm_user }}"
       password: "{{ rhsm_pass }}"
       state: present
-      pool: "^(60 Day Supported OpenShift Enterprise|OpenShift Enterprise Premium|Employee)"
+      pool: "^(60 Day Supported OpenShift Enterprise|OpenShift Enterprise, Standard|OpenShift Enterprise, Premium|Employee)"
     when: not (skip_subscription_management | bool)
