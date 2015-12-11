@@ -52,12 +52,12 @@
   - lineinfile:
       dest: /etc/resolv.conf
       insertbefore: ^nameserver 172.*$
-      line: nameserver {{ hostvars[groups.oo_first_master.0].openshift.dns.ip }}
+      line: nameserver {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip }}
       state: present
 
   - lineinfile:
       dest: /etc/dhcp/dhclient-eth0.conf
-      line: prepend domain-name-servers {{ hostvars[groups.oo_first_master.0].openshift.dns.ip }}
+      line: prepend domain-name-servers {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip }}
       state: present
       create: yes
 
