@@ -98,6 +98,10 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
     command='inventory/aws/hosts/ec2.py --refresh-cache'
     os.system(command)
 
+    # remove any cached facts to prevent stale data during a re-run
+    command='rm -rf ~/.ansible/cached_facts'
+    os.system(command)
+
     command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s deployment_type=%s api_port=%s console_port=%s rhsm_user=%s rhsm_pass=%s skip_subscription_management=%s run_smoke_tests=%s num_smoke_test_users=%s default_password=%s\' playbooks/openshift_setup.yml' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, deployment_type, api_port, console_port, rhsm_user, rhsm_pass, skip_subscription_management, run_smoke_tests, num_smoke_test_users, default_password)
 
     if verbose > 0:
