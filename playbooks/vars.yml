@@ -1,5 +1,7 @@
 ---
 debug_level: 3
+node_debug_level: 1
+master_debug_level:
 identity_providers:
 - name: htpasswd_auth
   login: true
