@@ -119,41 +119,41 @@
 
   - command: oc project default
 
-#  - command: oc get dc -n {{ hexboard.namespace }}
-#    register: dcs_out
-#    failed_when: "hexboard.name not in dcs_out"
-#    ignore_errors: true
-#
-#  - command: oc login -u {{ users.0.name }} -p {{ default_password }} --certificate-authority=/etc/origin/master/ca.crt
-#    when: dcs_out | failed
-#
-#  - script: ../files/get_token.sh
-#    register: auth_token
-#    when: dcs_out | failed
-#
-#  - set_fact:
-#      access_token: "{{ auth_token.stdout }}"
-#    when: dcs_out | failed
-#
-#  - command: oc project {{ hexboard.namespace }}
-#    when: dcs_out | failed
-#
-#  - template:
-#      dest: /root/hexboard_template.json
-#      src: ../templates/hexboard_template.json.j2
-#    when: dcs_out | failed
-#
-#  - command: oc create -f /root/hexboard_template.json
-#    when: dcs_out | failed
-#    ignore_errors: true
-#
-#  - command: oc start-build {{ hexboard.name }}
-#    when: dcs_out | failed
-#
-#  - command: "oc config use-context {{ default_context }}"
-#    when: dcs_out | failed
-#
-#  - command: oc project default
+  - command: oc get dc -n {{ hexboard.namespace }}
+    register: dcs_out
+    failed_when: "hexboard.name not in dcs_out"
+    ignore_errors: true
+
+  - command: oc login -u {{ users.0.name }} -p {{ default_password }} --certificate-authority=/etc/origin/master/ca.crt
+    when: dcs_out | failed
+
+  - script: ../files/get_token.sh
+    register: auth_token
+    when: dcs_out | failed
+
+  - set_fact:
+      access_token: "{{ auth_token.stdout }}"
+    when: dcs_out | failed
+
+  - command: oc project {{ hexboard.namespace }}
+    when: dcs_out | failed
+
+  - template:
+      dest: /root/hexboard_template.json
+      src: ../templates/hexboard_template.json.j2
+    when: dcs_out | failed
+
+  - command: oc create -f /root/hexboard_template.json
+    when: dcs_out | failed
+    ignore_errors: true
+
+  - command: oc start-build {{ hexboard.name }}
+    when: dcs_out | failed
+
+  - command: "oc config use-context {{ default_context }}"
+    when: dcs_out | failed
+
+  - command: oc project default
 
   # because of a bug in Ansible and Jinja templating, we have to do this as a script
   - name: Deploy registry inspection script
