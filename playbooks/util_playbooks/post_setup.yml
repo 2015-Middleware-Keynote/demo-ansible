@@ -34,13 +34,13 @@
   tasks:
   - lineinfile:
       dest: /etc/resolv.conf
-      insertbefore: ^nameserver 172.*$
-      line: nameserver {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip }}
+      insertbefore: ^nameserver 172.18.*$
+      line: nameserver {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip | default('172.30.0.1') }}
       state: present
 
   - lineinfile:
       dest: /etc/dhcp/dhclient-eth0.conf
-      line: prepend domain-name-servers {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip }}
+      line: prepend domain-name-servers {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip | default('172.30.0.1') }}
       state: present
       create: yes
 
