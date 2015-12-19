@@ -88,10 +88,10 @@
 # Configure the instances
 - include: ../../openshift-ansible/playbooks/common/openshift-cluster/config.yml
   vars:
-    g_etcd_group: oo_etcd_to_config
-    g_lb_group: oo_lb_to_config
-    g_masters_group: oo_masters_to_config
-    g_nodes_group: oo_nodes_to_config
+    g_etcd_hosts: "{{ groups.oo_etcd_to_config | default([]) }}"
+    g_lb_hosts: "{{ groups.oo_lb_to_config | default([]) }}"
+    g_master_hosts: "{{ groups.oo_masters_to_config | default([]) }}"
+    g_node_hosts: "{{ groups.oo_nodes_to_config | default([]) }}"
 
 # Router, Registry, internal users and projects, priming
 - include: util_playbooks/post_setup.yml
