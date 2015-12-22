@@ -276,7 +276,7 @@ class Rhsm(RegistrationBase):
               * Exception - if error occurs while running command
         '''
         if pool_ids is not None:
-            ids = pool_id
+            ids = pool_ids
         else:
             ids = [p.get_pool_id() for p in RhsmPools(self.module).filter(regexp)]
 
