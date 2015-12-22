@@ -278,7 +278,7 @@ class Rhsm(RegistrationBase):
         if pool_ids is not None:
             ids = pool_id
         else:
-            ids = [p for p in RhsmPools(self.module).filter(regexp)]
+            ids = [p.get_pool_id() for p in RhsmPools(self.module).filter(regexp)]
 
         return self.subscribe_ids(ids)
 
