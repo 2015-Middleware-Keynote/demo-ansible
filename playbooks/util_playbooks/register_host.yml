@@ -24,14 +24,6 @@
   hosts: oo_hosts_to_register
   serial: 1
   tasks:
-  - name: Enable subscription-manager
-    ini_file:
-      dest: /etc/yum/pluginconf.d/subscription-manager.conf
-      section: main
-      option: enabled
-      value: 1
-    when: not (skip_subscription_management | bool)
-
   - name: Register host
     redhat_subscription:
       username: "{{ rhsm_user }}"
