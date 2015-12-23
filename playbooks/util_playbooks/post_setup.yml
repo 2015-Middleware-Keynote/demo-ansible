@@ -33,40 +33,20 @@
   - ../vars.yml
   tasks:
   - lineinfile:
-      dest: /etc/sysconfig/docker
-      regexp: "{{ item.regexp }}"
-      line: "{{ item.line }}"
-    with_items:
-    - regexp: INSECURE_REGISTRY=
-      line: INSECURE_REGISTRY='--insecure-registry 0.0.0.0/0'
-    - regexp: GOMAXPROCS=
-      line: GOMAXPROCS={{ ansible_processor_cores }}
-    register: docker_conf
-
-  - name: restart docker
-    service:
-      name: docker
-      state: restarted
-    when: docker_conf | changed
-
-  - lineinfile:
       dest: /etc/resolv.conf
-      insertbefore: ^nameserver 172.*$
-      line: nameserver {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip }}
+      insertbefore: ^nameserver 172.18.*$
+      line: nameserver {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip | default('172.30.0.1') }}
       state: present
 
   - lineinfile:
       dest: /etc/dhcp/dhclient-eth0.conf
-      line: prepend domain-name-servers {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip }}
+      line: prepend domain-name-servers {{ hostvars[groups.oo_first_master.0].openshift.common.dns_ip | default('172.30.0.1') }}
       state: present
       create: yes
 
   - name: pre-pull images
     command: "docker pull {{ item }}"
     with_items: preload_images
-  handlers:
-    - name: restart openshift-node
-      service: name=openshift-node state=restarted
 
 - name: First master post config
   hosts: oo_first_master
@@ -86,7 +66,7 @@
     default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
   tasks:
   - name: Create the default users
-    command: "htpasswd -b /etc/openshift/master/htpasswd {{ item.name }} {{ default_password }}"
+    command: "htpasswd -b /etc/origin/master/htpasswd {{ item.name }} {{ default_password }}"
     with_items: users
 
   - command: oc project default
@@ -106,7 +86,7 @@
     when: router_out | failed
 
   - name: Generate router certificate files
-    command: "oadm create-server-cert --signer-cert=/etc/openshift/master/ca.crt --signer-key=/etc/openshift/master/ca.key --signer-serial=/etc/openshift/master/ca.serial.txt --hostnames='*.{{ r53_wildcard_zone }}' --cert={{ r53_wildcard_zone }}.crt --key={{ r53_wildcard_zone }}.key"
+    command: "oadm create-server-cert --signer-cert=/etc/origin/master/ca.crt --signer-key=/etc/origin/master/ca.key --signer-serial=/etc/origin/master/ca.serial.txt --hostnames='*.{{ r53_wildcard_zone }}' --cert={{ r53_wildcard_zone }}.crt --key={{ r53_wildcard_zone }}.key"
     when: router_out | failed
 
   - name: Assemble router PEM
@@ -116,7 +96,7 @@
     when: router_out | failed
 
   - name: Install router
-    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/openshift/master/openshift-router.kubeconfig --service-account=router"
+    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/origin/master/openshift-router.kubeconfig --service-account=router --images='{{ router_image_url }}'"
     when: router_out | failed
 
   - name: Check whether a registry exists or not
@@ -125,14 +105,8 @@
     ignore_errors: true
 
   - name: Install registry
-    command: "oadm registry --credentials=/etc/openshift/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
+    command: "oadm registry --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
     when: registry_out | failed
-
-  - name: Set registry GOMAXPROCS
-    command: oc env dc/docker-registry GOMAXPROCS={{ hostvars[groups.oo_infra_nodes.0].ansible_processor_cores }}
-
-  - name: Wait for 60 seconds for registry to re-deploy
-    pause: minutes=1
 
   - name: Find current projects list
     command: oc get projects
@@ -150,7 +124,7 @@
     failed_when: "hexboard.name not in dcs_out"
     ignore_errors: true
 
-  - command: oc login -u {{ users.0.name }} -p {{ default_password }} --certificate-authority=/etc/openshift/master/ca.crt
+  - command: oc login -u {{ users.0.name }} -p {{ default_password }} --certificate-authority=/etc/origin/master/ca.crt
     when: dcs_out | failed
 
   - script: ../files/get_token.sh
@@ -194,39 +168,35 @@
   - set_fact:
       registry_uri: "{{ registry_uri_out.stdout }}"
 
-  handlers:
-    - name: restart openshift-master
-      service: name=openshift-master state=restarted
 
-- name: Node post config
-  hosts: oo_demo_nodes[0]
-  vars_files:
-  - ../vars.yml
-  vars:
-    registry_uri: "{{ hostvars[groups.oo_first_master.0].registry_uri }}"
-    default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
-  tasks:
-  - command: docker pull {{ item.prefix }}/{{ item.image }}:{{ item.tag }}
-    with_items: prime_images
-
-  - command: docker tag -f {{ item.prefix }}/{{ item.image }} {{ registry_uri }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
-    with_items: prime_images
-
-  - command: oc login --insecure-skip-tls-verify -u {{ prime_user }} -p {{ default_password }} {{ hostvars[groups.oo_first_master.0].openshift.master.api_url }}
-
-  - command: oc whoami -t
-    register: token_result
-
-  - command: "oc config use-context {{ default_context }}"
-    when: inventory_hostname == groups.oo_first_master.0
-
-  - command: oc project default
-    when: inventory_hostname == groups.oo_first_master.0
-
-  - command: docker login -u {{ prime_user }} -e {{ prime_user }}@{{ prime_namespace }}.local -p {{ token_result.stdout }} {{ registry_uri }}
-
-  - command: docker push {{ registry_uri }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
-    with_items: prime_images
-
-  - command: docker logout
-
+#- name: Node post config
+#  hosts: oo_demo_nodes[0]
+#  vars_files:
+#  - ../vars.yml
+#  vars:
+#    registry_uri: "{{ hostvars[groups.oo_first_master.0].registry_uri }}"
+#    default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
+#  tasks:
+#  - command: docker pull {{ item.prefix }}/{{ item.image }}:{{ item.tag }}
+#    with_items: prime_images
+#
+#  - command: docker tag -f {{ item.prefix }}/{{ item.image }} {{ registry_uri }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
+#    with_items: prime_images
+#
+#  - command: oc login --insecure-skip-tls-verify -u {{ prime_user }} -p {{ default_password }} {{ hostvars[groups.oo_first_master.0].openshift.master.api_url }}
+#
+#  - command: oc whoami -t
+#    register: token_result
+#
+#  - command: "oc config use-context {{ default_context }}"
+#    when: inventory_hostname == groups.oo_first_master.0
+#
+#  - command: oc project default
+#    when: inventory_hostname == groups.oo_first_master.0
+#
+#  - command: docker login -u {{ prime_user }} -e {{ prime_user }}@{{ prime_namespace }}.local -p {{ token_result.stdout }} {{ registry_uri }}
+#
+#  - command: docker push {{ registry_uri }}/{{ prime_namespace }}/{{ item.image }}:{{ item.tag }}
+#    with_items: prime_images
+#
+#  - command: docker logout

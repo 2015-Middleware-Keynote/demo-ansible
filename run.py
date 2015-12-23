@@ -21,7 +21,7 @@ env_sizes = {'tiny': 1,
               show_default=True)
 @click.option('--region', default='us-east-1', help='ec2 region',
               show_default=True)
-@click.option('--ami', default='ami-12663b7a', help='ec2 ami',
+@click.option('--ami', default='ami-2051294a', help='ec2 ami',
               show_default=True)
 @click.option('--master-instance-type', default='m4.large', help='ec2 instance type',
               show_default=True)
@@ -35,7 +35,7 @@ env_sizes = {'tiny': 1,
               help='route53 hosted zone (must be pre-configured)')
 @click.option('--app-dns-prefix', default='apps', help='application dns prefix',
               show_default=True)
-@click.option('--deployment-type', default='enterprise', help='openshift deployment type',
+@click.option('--deployment-type', default='openshift-enterprise', help='openshift deployment type',
               show_default=True)
 @click.option('--api-port', default='443', type=int, help='openshift api port',
               show_default=True)
@@ -51,7 +51,7 @@ env_sizes = {'tiny': 1,
 @click.option('--run-smoke-tests', is_flag=True, help='Run workshop smoke tests')
 @click.option('--num-smoke-test-users', default=5, type=int,
               help='Number of smoke test users', show_default=True)
-@click.option('--default-password', default='openshift3', 
+@click.option('--default-password', default='openshift3',
               help='password for all users', show_default=True)
 @click.help_option('--help', '-h')
 @click.option('-v', '--verbose', count=True)
@@ -62,7 +62,7 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
                     cluster_id=None, app_dns_prefix=None,
                     deployment_type=None, console_port=443, api_port=443,
                     rhsm_user=None, rhsm_pass=None,
-                    skip_subscription_management=False, run_smoke_tests=False, 
+                    skip_subscription_management=False, run_smoke_tests=False,
                     num_smoke_test_users=None, default_password=None, verbose=0):
     click.echo('Configured values:')
     click.echo('\tcluster_id: %s' % cluster_id)
@@ -96,6 +96,10 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
     # refresh the inventory cache to prevent stale hosts from
     # interferring with re-running
     command='inventory/aws/hosts/ec2.py --refresh-cache'
+    os.system(command)
+
+    # remove any cached facts to prevent stale data during a re-run
+    command='rm -rf .ansible/cached_facts'
     os.system(command)
 
     command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s deployment_type=%s api_port=%s console_port=%s rhsm_user=%s rhsm_pass=%s skip_subscription_management=%s run_smoke_tests=%s num_smoke_test_users=%s default_password=%s\' playbooks/openshift_setup.yml' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, deployment_type, api_port, console_port, rhsm_user, rhsm_pass, skip_subscription_management, run_smoke_tests, num_smoke_test_users, default_password)
