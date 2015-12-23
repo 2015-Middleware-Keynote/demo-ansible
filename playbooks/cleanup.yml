@@ -1,0 +1,39 @@
+---
+- hosts: localhost
+  connection: local
+  become: no
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  tasks:
+  - add_host:
+      name: "{{ item }}"
+      ansible_ssh_user: openshift
+      ansible_sudo: yes
+      groups: oo_hosts_to_unregister
+    with_items: groups['tag_openshift-demo-cluster_id_' ~ cluster_id] | default([], True)
+
+- name: Unregister host(s)
+  hosts: oo_hosts_to_unregister
+  serial: 1
+  tasks:
+  - name: Unregister host
+    redhat_subscription:
+      username: "{{ rhsm_user }}"
+      password: "{{ rhsm_pass }}"
+      state: absent
+
+- hosts: localhost
+  connection: local
+  become: no
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  tasks:
+  - name: Destroy the CloudFormation Stack
+    cloudformation:
+      region: "{{ ec2_region }}"
+      stack_name: openshift-demo-{{ cluster_id }}
+      state: absent
+      template: files/cloudformation.json
+

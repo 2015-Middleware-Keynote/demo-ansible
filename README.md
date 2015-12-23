@@ -61,14 +61,14 @@ Stand up an environment using the defaults. run.py will prompt for Rhsm user, Rh
 ```
 
 Stand up an environment without being prompted for confirmation and overriding
-the cluster id, environment size, and keypair:
+the cluster id, and keypair:
 ```
-./run.py --no-confirm --cluster-id my-cluster --env-size medium --keypair my_keypair \
+./run.py --no-confirm --cluster-id my_cluster --keypair my_keypair \
 --r53-zone my.hosted.domain --rhsm-user my_redhat_user --rhsm-pass my_redhat_pass
 ```
 
 After the run has completed the openshift web console will be available at
-`https://openshift-master.<cluster id>.<r53 zone>` and routes created for
+`https://openshift.<cluster id>.<r53 zone>` and routes created for
 applications will default to `<app name>.<project name>.<cluster id>.<r53 zone>`
 
 ## Environment Information

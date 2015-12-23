@@ -6,7 +6,8 @@
   connection: local
   sudo: no
   vars:
-    infra_hosts: "{{ groups['tag_node-region_infra'] | intersect(groups['tag_env_' ~ cluster_id]) }}"
+    infra_hosts: "{{ groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_node']
+                     | intersect(groups['tag_openshift-demo-' ~ cluster_id ~ '-node-type_infrastructure']) }}"
   tasks:
   - add_host:
       name: "{{ infra_hosts.0 }}"
@@ -18,7 +19,8 @@
   connection: local
   sudo: no
   vars:
-    demo_hosts: "{{ groups['tag_node-region_demo'] | intersect(groups['tag_env_' ~ cluster_id]) }}"
+    demo_hosts: "{{ groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_node']
+                     | intersect(groups['tag_openshift-demo-' ~ cluster_id ~ '-node-type_application']) }}"
   tasks:
   - add_host:
       name: "{{ demo_hosts.0 }}"
@@ -48,6 +50,15 @@
     command: "docker pull {{ item }}"
     with_items: preload_images
 
+- name: Master auth config
+  hosts: oo_masters_to_config
+  vars_files:
+  - ../vars.yml
+  tasks:
+  - name: Create the default users
+    command: "htpasswd -b /etc/origin/master/htpasswd {{ item.user }} {{ default_password }}"
+    with_items: users
+
 - name: First master post config
   hosts: oo_first_master
   vars_files:
@@ -58,17 +69,8 @@
       name: sketchproxy
       project: default
       region: demo
-    users:
-    - name: demo
-      project: demo
-    - name: "{{ prime_user }}"
-      project: "{{ prime_namespace }}"
-    default_context: '{{ "default/" ~ (hostvars[groups.oo_first_master.0].openshift.common.hostname | regex_replace("\.", "-")) ~ ":" ~ hostvars[groups.oo_first_master.0].openshift.master.api_port ~ "/system:admin" }}'
+    default_context: 'default/{{ openshift.master.cluster_hostname | regex_replace("\.", "-") }}:{{ openshift.master.api_port }}/system:admin'
   tasks:
-  - name: Create the default users
-    command: "htpasswd -b /etc/origin/master/htpasswd {{ item.name }} {{ default_password }}"
-    with_items: users
-
   - command: oc project default
 
   - name: Set nodeselector for the default project to be region=infra
@@ -99,6 +101,13 @@
     command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/origin/master/openshift-router.kubeconfig --service-account=router --images='{{ router_image_url }}'"
     when: router_out | failed
 
+  - pause:
+      seconds: 10
+
+  - name: Scale router
+    command: "oc scale --replicas={{ num_infra_nodes }} dc router"
+    when: router_out | failed
+
   - name: Check whether a registry exists or not
     command: oadm registry --dry-run
     register: registry_out
@@ -113,7 +122,7 @@
     register: projects
 
   - name: Create projects for internal users
-    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}' --admin='{{ item.name }}'"
+    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}' --admin='{{ item.user }}'"
     when: item.project not in projects.stdout
     with_items: users
 
@@ -124,7 +133,7 @@
     failed_when: "hexboard.name not in dcs_out"
     ignore_errors: true
 
-  - command: oc login -u {{ users.0.name }} -p {{ default_password }} --certificate-authority=/etc/origin/master/ca.crt
+  - command: oc login -u {{ users.0.user }} -p {{ default_password }} --certificate-authority=/etc/origin/master/ca.crt
     when: dcs_out | failed
 
   - script: ../files/get_token.sh

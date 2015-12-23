@@ -11,8 +11,8 @@ cloud_config_modules:
 - runcmd
 
 mounts:
-- [ /dev/xvdb, /var/lib/openshift, xfs, "defaults" ]
-- [ /dev/xvdc ]
+- [ /dev/xvdb ]
+- [ /dev/xvdc, /var/lib/etcd, xfs, "defaults" ]
 
 disk_setup:
   /dev/xvdb:
@@ -22,12 +22,12 @@ disk_setup:
 fs_setup:
 - label: etcd_storage
   filesystem: xfs
-  device: /dev/xvdb
+  device: /dev/xvdc
   partition: auto
 
 write_files:
 - content: |
-    DEVS='/dev/xvdc'
+    DEVS='/dev/xvdb'
     VG=docker_vg
   path: /etc/sysconfig/docker-storage-setup
   owner: root:root

@@ -1,0 +1,1038 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "VpcCidrBlock": {
+      "Type": "String"
+    },
+    "MasterApiPort": {
+      "Type": "Number",
+      "Default": "8443"
+    },
+    "Route53HostedZone": {
+      "Type": "String"
+    },
+    "MasterClusterHostname": {
+      "Type": "String"
+    },
+    "MasterClusterPublicHostname": {
+      "Type": "String"
+    },
+    "AppWildcardDomain": {
+      "Type": "String"
+    },
+    "NumSubnets": {
+      "Type": "Number",
+      "MinValue": "1",
+      "MaxValue": "4",
+      "Default": "1"
+    },
+    "SubnetAvailabilityZones": {
+      "Type": "List<AWS::EC2::AvailabilityZone::Name>"
+    },
+    "SubnetCidrBlocks": {
+      "Type": "CommaDelimitedList"
+    },
+    "KeyName": {
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "MasterInstanceType": {
+      "Type": "String",
+      "Default": "t2.medium"
+    },
+    "MasterImageId": {
+      "Type": "AWS::EC2::Image::Id"
+    },
+    "MasterUserData": {
+      "Type": "String"
+    },
+    "MasterRootVolSize": {
+      "Type": "String",
+      "Default": "30"
+    },
+    "MasterDockerVolSize": {
+      "Type": "String",
+      "Default": "25"
+    },
+    "MasterEtcdVolSize": {
+      "Type": "String",
+      "Default": "25"
+    },
+    "MasterEtcdVolType": {
+      "Type": "String",
+      "Default": "gp2"
+    },
+    "MasterDockerVolType": {
+      "Type": "String",
+      "Default": "gp2"
+    },
+    "MasterRootVolType": {
+      "Type": "String",
+      "Default": "gp2"
+    },
+    "InfraInstanceType": {
+      "Type": "String",
+      "Default": "t2.medium"
+    },
+    "InfraImageId": {
+      "Type": "AWS::EC2::Image::Id"
+    },
+    "InfraUserData": {
+      "Type": "String"
+    },
+    "InfraRootVolSize": {
+      "Type": "String",
+      "Default": "30"
+    },
+    "InfraDockerVolSize": {
+      "Type": "String",
+      "Default": "25"
+    },
+    "InfraDockerVolType": {
+      "Type": "String",
+      "Default": "gp2"
+    },
+    "InfraRootVolType": {
+      "Type": "String",
+      "Default": "gp2"
+    },
+    "NodeInstanceType": {
+      "Type": "String",
+      "Default": "t2.medium"
+    },
+    "NodeImageId": {
+      "Type": "AWS::EC2::Image::Id"
+    },
+    "NodeUserData": {
+      "Type": "String"
+    },
+    "NodeRootVolSize": {
+      "Type": "String",
+      "Default": "30"
+    },
+    "NodeDockerVolSize": {
+      "Type": "String",
+      "Default": "25"
+    },
+    "NodeDockerVolType": {
+      "Type": "String",
+      "Default": "gp2"
+    },
+    "NodeRootVolType": {
+      "Type": "String",
+      "Default": "gp2"
+    },
+    "NumMasters": {
+      "Type": "Number",
+      "AllowedValues": ["1", "3"],
+      "Default": "1"
+    },
+    "NumInfra": {
+      "Type": "Number",
+      "MinValue": "1",
+      "Default": "1"
+    },
+    "NumNodes": {
+      "Type": "Number",
+      "MinValue": "1",
+      "Default": "1"
+    }
+  },
+  "Conditions": {
+    "CreateSubnet2": {"Fn::Not": [{"Fn::Equals" : [{"Ref" : "NumSubnets"}, "1"]}]},
+    "CreateSubnet3": {
+      "Fn::Or": [
+        {"Fn::Equals" : [{"Ref" : "NumSubnets"}, "3"]},
+        {"Fn::Equals" : [{"Ref" : "NumSubnets"}, "4"]}
+      ]
+    },
+    "CreateSubnet4": {"Fn::Equals" : [{"Ref" : "NumSubnets"}, "4"]}
+  },
+  "Resources": {
+    "Vpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": { "Ref": "VpcCidrBlock" },
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true"
+      }
+    },
+    "VpcInternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "VpcGA": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "InternetGatewayId": { "Ref": "VpcInternetGateway" },
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "VpcRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "VPCRouteInternetGateway": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "GatewayId": { "Ref": "VpcInternetGateway" },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": { "Ref": "VpcRouteTable" }
+      }
+    },
+    "Subnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "AvailabilityZone": {"Fn::Select": ["0", {"Ref": "SubnetAvailabilityZones"}]},
+        "CidrBlock": {"Fn::Select": ["0", {"Ref": "SubnetCidrBlocks"}]},
+        "MapPublicIpOnLaunch": "true",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "Subnet1RTA": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": { "Ref": "VpcRouteTable" },
+        "SubnetId": { "Ref": "Subnet1" }
+      }
+    },
+    "Subnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Condition": "CreateSubnet2",
+      "Properties": {
+        "AvailabilityZone": {"Fn::Select": ["1", {"Ref": "SubnetAvailabilityZones"}]},
+        "CidrBlock": {"Fn::Select": ["1", {"Ref": "SubnetCidrBlocks"}]},
+        "MapPublicIpOnLaunch": "true",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "Subnet2RTA": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Condition": "CreateSubnet2",
+      "Properties": {
+        "RouteTableId": { "Ref": "VpcRouteTable" },
+        "SubnetId": { "Ref": "Subnet2" }
+      }
+    },
+    "Subnet3": {
+      "Type": "AWS::EC2::Subnet",
+      "Condition": "CreateSubnet3",
+      "Properties": {
+        "AvailabilityZone": {"Fn::Select": ["2", {"Ref": "SubnetAvailabilityZones"}]},
+        "CidrBlock": {"Fn::Select": ["2", {"Ref": "SubnetCidrBlocks"}]},
+        "MapPublicIpOnLaunch": "true",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "Subnet3RTA": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Condition": "CreateSubnet3",
+      "Properties": {
+        "RouteTableId": { "Ref": "VpcRouteTable" },
+        "SubnetId": { "Ref": "Subnet3" }
+      }
+    },
+    "Subnet4": {
+      "Type": "AWS::EC2::Subnet",
+      "Condition": "CreateSubnet4",
+      "Properties": {
+        "AvailabilityZone": {"Fn::Select": ["3", {"Ref": "SubnetAvailabilityZones"}]},
+        "CidrBlock": {"Fn::Select": ["3", {"Ref": "SubnetCidrBlocks"}]},
+        "MapPublicIpOnLaunch": "true",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "Subnet4RTA": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Condition": "CreateSubnet4",
+      "Properties": {
+        "RouteTableId": { "Ref": "VpcRouteTable" },
+        "SubnetId": { "Ref": "Subnet4" }
+      }
+    },
+    "SshSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "SSH",
+        "VpcId": { "Ref": "Vpc" },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "EtcdSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "etcd",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "InfraElbSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Infra Load Balancer",
+        "VpcId": { "Ref": "Vpc" },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "443",
+            "ToPort": "443",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "MasterExtElbSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Master External Load Balancer",
+        "VpcId": { "Ref": "Vpc" },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": { "Ref": "MasterApiPort" },
+            "ToPort": { "Ref": "MasterApiPort" },
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "MasterIntElbSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Master Internal Load Balancer",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "InfraSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Infra",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "NodeSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Node",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "MasterSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Master",
+        "VpcId": { "Ref": "Vpc" }
+      }
+    },
+    "InfraElbEgressHTTP": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "InfraElbSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "80",
+        "ToPort": "80",
+        "DestinationSecurityGroupId": { "Fn::GetAtt": [ "InfraSG", "GroupId" ] }
+      }
+    },
+    "InfraElbEgressHTTPS": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "InfraElbSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "443",
+        "ToPort": "443",
+        "DestinationSecurityGroupId": { "Fn::GetAtt": [ "InfraSG", "GroupId" ] }
+      }
+    },
+    "MasterExtElbEgressAPI": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterExtElbSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": { "Ref": "MasterApiPort" },
+        "ToPort": { "Ref": "MasterApiPort" },
+        "DestinationSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
+      }
+    },
+    "MasterIntElbEgressAPI": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterIntElbSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": { "Ref": "MasterApiPort" },
+        "ToPort": { "Ref": "MasterApiPort" },
+        "DestinationSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
+      }
+    },
+    "MasterIntElbIngressMasters": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterIntElbSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": { "Ref": "MasterApiPort" },
+        "ToPort": { "Ref": "MasterApiPort" },
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
+      }
+    },
+    "MasterIntElbIngressNodes": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterIntElbSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": { "Ref": "MasterApiPort" },
+        "ToPort": { "Ref": "MasterApiPort" },
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
+    "InfraIngressHTTP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "InfraSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "80",
+        "ToPort": "80",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "InfraElbSG", "GroupId" ] }
+      }
+    },
+    "InfraIngressHTTPS": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "InfraSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "443",
+        "ToPort": "443",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "InfraElbSG", "GroupId" ] }
+      }
+    },
+    "NodeIngressMasterKubelet": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "10250",
+        "ToPort": "10250",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
+      }
+    },
+    "NodeIngressNodeVXLAN": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] },
+        "IpProtocol": "udp",
+        "FromPort": "4789",
+        "ToPort": "4789",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressIntLB": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": { "Ref": "MasterApiPort" },
+        "ToPort": { "Ref": "MasterApiPort" },
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterIntElbSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressExtLB": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": { "Ref": "MasterApiPort" },
+        "ToPort": { "Ref": "MasterApiPort" },
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterExtElbSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressNodesDNSUDP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "udp",
+        "FromPort": "53",
+        "ToPort": "53",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressNodesDNSTCP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "53",
+        "ToPort": "53",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
+    "EtcdIngressEtcd": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "EtcdSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "2379",
+        "ToPort": "2379",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "EtcdSG", "GroupId" ] }
+      }
+    },
+    "EtcdIngressMasters": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "EtcdSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "2379",
+        "ToPort": "2379",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
+      }
+    },
+    "EtcdIngressEtcdPeer": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "EtcdSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "2380",
+        "ToPort": "2380",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "EtcdSG", "GroupId" ] }
+      }
+    },
+    "MasterIntElb": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "CrossZone": "true",
+        "HealthCheck": {
+          "HealthyThreshold" : "2",
+          "Interval" : "5",
+          "Target" : "TCP:443",
+          "Timeout" : "2",
+          "UnhealthyThreshold" : "2"
+        },
+        "Listeners":[
+          {
+            "InstancePort": "443",
+            "InstanceProtocol": "TCP",
+            "LoadBalancerPort": "443",
+            "Protocol": "TCP"
+          }
+        ],
+        "Scheme": "internal",
+        "SecurityGroups": [ { "Ref": "MasterIntElbSG" } ],
+        "Subnets": [
+          {"Ref": "Subnet1"},
+          {"Fn::If": [
+              "CreateSubnet2",
+              {"Ref": "Subnet2"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet3",
+              {"Ref": "Subnet3"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet4",
+              {"Ref": "Subnet4"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          }
+        ]
+      }
+    },
+    "MasterExtElb": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "CrossZone": "true",
+        "HealthCheck": {
+          "HealthyThreshold" : "2",
+          "Interval" : "5",
+          "Target" : "TCP:443",
+          "Timeout" : "2",
+          "UnhealthyThreshold" : "2"
+        },
+        "Listeners":[
+          {
+            "InstancePort": "443",
+            "InstanceProtocol": "TCP",
+            "LoadBalancerPort": "443",
+            "Protocol": "TCP"
+          }
+        ],
+        "SecurityGroups": [{"Ref": "MasterExtElbSG"}],
+        "Subnets": [
+          {"Ref": "Subnet1"},
+          {"Fn::If": [
+              "CreateSubnet2",
+              {"Ref": "Subnet2"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet3",
+              {"Ref": "Subnet3"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet4",
+              {"Ref": "Subnet4"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          }
+        ]
+      }
+    },
+    "InfraElb": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "CrossZone": "true",
+        "HealthCheck": {
+          "HealthyThreshold" : "2",
+          "Interval" : "5",
+          "Target" : "TCP:443",
+          "Timeout" : "2",
+          "UnhealthyThreshold" : "2"
+        },
+        "Listeners":[
+          {
+            "InstancePort": "443",
+            "InstanceProtocol": "TCP",
+            "LoadBalancerPort": "443",
+            "Protocol": "TCP"
+          },
+          {
+            "InstancePort": "80",
+            "InstanceProtocol": "TCP",
+            "LoadBalancerPort": "80",
+            "Protocol": "TCP"
+          }
+        ],
+        "SecurityGroups": [ { "Ref": "InfraElbSG" } ],
+        "Subnets": [
+          {"Ref": "Subnet1"},
+          {"Fn::If": [
+              "CreateSubnet2",
+              {"Ref": "Subnet2"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet3",
+              {"Ref": "Subnet3"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet4",
+              {"Ref": "Subnet4"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          }
+        ]
+      }
+    },
+    "Route53Records": {
+      "Type": "AWS::Route53::RecordSetGroup",
+      "Properties": {
+        "HostedZoneName": { "Ref": "Route53HostedZone" },
+        "RecordSets": [
+          {
+            "Name": { "Ref": "MasterClusterPublicHostname" },
+            "Type": "A",
+            "AliasTarget": {
+                "HostedZoneId": { "Fn::GetAtt" : ["MasterExtElb", "CanonicalHostedZoneNameID"] },
+                "DNSName": { "Fn::GetAtt" : ["MasterExtElb","CanonicalHostedZoneName"] }
+            }
+          },
+          {
+            "Name": { "Ref": "MasterClusterHostname" },
+            "Type": "A",
+            "AliasTarget": {
+                "HostedZoneId": { "Fn::GetAtt" : ["MasterIntElb", "CanonicalHostedZoneNameID"] },
+                "DNSName": { "Fn::GetAtt" : ["MasterIntElb","DNSName"] }
+            }
+          },
+          {
+            "Name": { "Ref": "AppWildcardDomain" },
+            "Type": "A",
+            "AliasTarget": {
+                "HostedZoneId": { "Fn::GetAtt" : ["InfraElb", "CanonicalHostedZoneNameID"] },
+                "DNSName": { "Fn::GetAtt" : ["InfraElb","CanonicalHostedZoneName"] }
+            }
+          }
+        ]
+      },
+      "DependsOn": [
+        "InfraElb",
+        "MasterIntElb",
+        "MasterExtElb"
+      ]
+    },
+    "NodePolicy": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": [ "ec2.amazonaws.com" ] },
+              "Action": [ "sts:AssumeRole" ]
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "demo-node-1",
+            "PolicyDocument": {
+              "Version" : "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "ec2:Describe*",
+                  "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "demo-node-2",
+            "PolicyDocument": {
+              "Version" : "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "ec2:AttachVolume",
+                  "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "demo-node-3",
+            "PolicyDocument": {
+              "Version" : "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "ec2:DetachVolume",
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "MasterPolicy": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": [ "ec2.amazonaws.com" ] },
+              "Action": [ "sts:AssumeRole" ]
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "demo-master-1",
+            "PolicyDocument": {
+              "Version" : "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "ec2:*",
+                  "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "demo-master-2",
+            "PolicyDocument": {
+              "Version" : "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "elasticloadbalancing:*",
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "MasterInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Roles": [ { "Ref": "MasterPolicy" } ]
+      }
+    },
+    "NodeInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Roles": [ { "Ref": "NodePolicy" } ]
+      }
+    },
+    "InfraLC": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": "true",
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/sda1",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeSize": {"Ref": "InfraRootVolSize"},
+              "VolumeType": {"Ref": "InfraRootVolType"}
+            }
+          },
+          {
+            "DeviceName": "/dev/xvdb",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeSize": {"Ref": "InfraDockerVolSize"},
+              "VolumeType": {"Ref": "InfraDockerVolType"}
+            }
+          }
+        ],
+        "ImageId": {"Ref": "InfraImageId"},
+        "InstanceType": {"Ref": "InfraInstanceType"},
+        "KeyName": {"Ref": "KeyName"},
+        "UserData": {"Ref": "InfraUserData"},
+        "SecurityGroups": [
+          { "Ref": "InfraSG" },
+          { "Ref": "NodeSG" },
+          { "Ref": "SshSG" }
+        ],
+        "IamInstanceProfile": { "Ref": "NodeInstanceProfile" }
+      }
+    },
+    "NodeLC": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": "true",
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/sda1",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeSize": {"Ref": "NodeRootVolSize"},
+              "VolumeType": {"Ref": "NodeRootVolType"}
+            }
+          },
+          {
+            "DeviceName": "/dev/xvdb",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeSize": {"Ref": "NodeDockerVolSize"},
+              "VolumeType": {"Ref": "NodeDockerVolType"}
+            }
+          }
+        ],
+        "ImageId": {"Ref": "NodeImageId"},
+        "InstanceType": {"Ref": "NodeInstanceType"},
+        "KeyName": {"Ref": "KeyName"},
+        "UserData": {"Ref": "NodeUserData"},
+        "SecurityGroups": [
+          { "Ref": "NodeSG" },
+          { "Ref": "SshSG" }
+        ],
+        "IamInstanceProfile": { "Ref": "NodeInstanceProfile" }
+      }
+    },
+    "MasterLC": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": "true",
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/sda1",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeSize": {"Ref": "MasterRootVolSize"},
+              "VolumeType": {"Ref": "MasterRootVolType"}
+            }
+          },
+          {
+            "DeviceName": "/dev/xvdb",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeSize": {"Ref": "MasterDockerVolSize"},
+              "VolumeType": {"Ref": "MasterDockerVolType"}
+            }
+          },
+          {
+            "DeviceName": "/dev/xvdc",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeSize": {"Ref": "MasterEtcdVolSize"},
+              "VolumeType": {"Ref": "MasterEtcdVolType"}
+            }
+          }
+        ],
+        "ImageId": {"Ref": "MasterImageId"},
+        "InstanceType": {"Ref": "MasterInstanceType"},
+        "KeyName": {"Ref": "KeyName"},
+        "UserData": {"Ref": "MasterUserData"},
+        "SecurityGroups": [
+          { "Ref": "MasterSG" },
+          { "Ref": "MasterSG" },
+          { "Ref": "EtcdSG" },
+          { "Ref": "SshSG" }
+        ],
+        "IamInstanceProfile": { "Ref": "MasterInstanceProfile" }
+      }
+    },
+    "InfraASG": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "DesiredCapacity": {"Ref": "NumInfra"},
+        "MinSize": {"Ref": "NumInfra"},
+        "MaxSize": {"Ref": "NumInfra"},
+        "LaunchConfigurationName": { "Ref": "InfraLC" },
+        "LoadBalancerNames": [ { "Ref": "InfraElb" } ],
+        "Tags": [
+          { "Key": {"Fn::Join": ["-", [{"Ref": "AWS::StackName"}, "host-type"]]},
+            "Value": "node",
+            "PropagateAtLaunch": true
+          },
+          { "Key": {"Fn::Join": ["-", [{"Ref": "AWS::StackName"}, "node-type"]]},
+            "Value": "infrastructure",
+            "PropagateAtLaunch": true
+          },
+          { "Key": "Name",
+            "Value": {"Fn::Join": ["-", [{"Ref": "AWS::StackName"}, "infra-node"]]},
+            "PropagateAtLaunch": true
+          }
+        ],
+        "VPCZoneIdentifier": [
+          {"Ref": "Subnet1"},
+          {"Fn::If": [
+              "CreateSubnet2",
+              {"Ref": "Subnet2"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet3",
+              {"Ref": "Subnet3"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet4",
+              {"Ref": "Subnet4"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          }
+        ]
+      }
+    },
+    "NodeASG": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "DesiredCapacity": {"Ref": "NumNodes"},
+        "MinSize": {"Ref": "NumNodes"},
+        "MaxSize": {"Ref": "NumNodes"},
+        "LaunchConfigurationName": { "Ref": "NodeLC" },
+        "Tags": [
+          { "Key": {"Fn::Join": ["-", [{"Ref": "AWS::StackName"}, "host-type"]]},
+            "Value": "node",
+            "PropagateAtLaunch": true
+          },
+          { "Key": {"Fn::Join": ["-", [{"Ref": "AWS::StackName"}, "node-type"]]},
+            "Value": "application",
+            "PropagateAtLaunch": true
+          },
+          { "Key": "Name",
+            "Value": {"Fn::Join": ["-", [{"Ref": "AWS::StackName"},"app-node"]]},
+            "PropagateAtLaunch": true
+          }
+        ],
+        "VPCZoneIdentifier": [
+          {"Ref": "Subnet1"},
+          {"Fn::If": [
+              "CreateSubnet2",
+              {"Ref": "Subnet2"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet3",
+              {"Ref": "Subnet3"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet4",
+              {"Ref": "Subnet4"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          }
+        ]
+      }
+    },
+    "MasterASG": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "DesiredCapacity": {"Ref": "NumMasters"},
+        "MinSize": {"Ref": "NumMasters"},
+        "MaxSize": {"Ref": "NumMasters"},
+        "LaunchConfigurationName": { "Ref": "MasterLC" },
+        "LoadBalancerNames": [
+          { "Ref": "MasterExtElb" },
+          { "Ref": "MasterIntElb" }
+        ],
+        "Tags": [
+          { "Key": {"Fn::Join": ["-", [{"Ref": "AWS::StackName"}, "host-type"]]},
+            "Value": "master",
+            "PropagateAtLaunch": true
+          },
+          { "Key": "Name",
+            "Value": {"Fn::Join": ["-", [{"Ref": "AWS::StackName"},"master"]]},
+            "PropagateAtLaunch": true
+          }
+        ],
+        "VPCZoneIdentifier": [
+          {"Ref": "Subnet1"},
+          {"Fn::If": [
+              "CreateSubnet2",
+              {"Ref": "Subnet2"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet3",
+              {"Ref": "Subnet3"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          },
+          {"Fn::If": [
+              "CreateSubnet4",
+              {"Ref": "Subnet4"},
+              {"Ref": "AWS::NoValue"}
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

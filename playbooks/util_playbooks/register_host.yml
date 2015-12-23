@@ -1,27 +1,7 @@
 # vim: set ft=ansible:
 ---
-- hosts: localhost
-  connection: local
-  sudo: no
-  gather_facts: no
-  vars_files:
-  - ../vars.yml
-  vars:
-    cluster_hosts: "{{ groups['tag_env_' ~ cluster_id] }}"
-  tasks:
-  - fail:
-      msg: required values not set
-    when: rhsm_user is not defined or rhsm_pass is not defined or cluster_id is not defined and not (skip_subscription_management | bool)
-
-  - add_host:
-      name: "{{ item }}"
-      ansible_ssh_user: openshift
-      ansible_sudo: yes
-      groups: oo_hosts_to_register
-    with_items: cluster_hosts
-
 - name: Register host(s)
-  hosts: oo_hosts_to_register
+  hosts: cluster_hosts
   serial: 1
   tasks:
   - name: Register host
@@ -46,7 +26,7 @@
     when: register_result | changed
 
 - name: Software update
-  hosts: oo_hosts_to_register
+  hosts: cluster_hosts
   tasks:
   - name: Update current package set
     yum:

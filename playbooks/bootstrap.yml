@@ -1,0 +1,62 @@
+# vim: set ft=ansible:
+---
+- hosts: localhost
+  connection: local
+  sudo: no
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  vars:
+    vpc_subnet_azs: "{{ lookup('ec2_zones_by_region', ec2_region) }}"
+    #vpc_subnet_count: "{{ vpc_subnet_azs | oo_split | length }}"
+    vpc_subnet_count: 1
+  tasks:
+  - fail:
+      msg: required values not set
+    when: cluster_id is not defined or ec2_region is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_master_instance_type is not defined or ec2_infra_instance_type is not defined or ec2_node_instance_type is not defined or r53_zone is not defined or r53_host_zone is not defined or r53_wildcard_zone is not defined or num_app_nodes is not defined or hexboard_size is not defined or rhsm_user is not defined or rhsm_pass is not defined or deployment_type is not defined
+
+  - name: Launch the CloudFormation Template
+    cloudformation:
+      region: "{{ ec2_region }}"
+      stack_name: openshift-demo-{{ cluster_id }}
+      state: present
+      tags:
+        openshift-demo: "{{ cluster_id }}"
+      template: files/cloudformation.json
+      template_parameters:
+        Route53HostedZone: "{{ r53_zone }}."
+        MasterApiPort: "{{ console_port }}"
+        MasterClusterHostname: openshift.internal.{{ r53_host_zone }}
+        MasterClusterPublicHostname: openshift.{{ r53_host_zone }}
+        AppWildcardDomain: "*.{{ r53_wildcard_zone }}"
+        VpcCidrBlock: 172.18.0.0/16
+        NumSubnets: "{{ vpc_subnet_count }}"
+        SubnetAvailabilityZones: "{{ vpc_subnet_azs }}"
+        SubnetCidrBlocks: 172.18.0.0/24,172.18.1.0/24,172.18.2.0/24,172.18.3.0/24
+        KeyName: "{{ ec2_keypair }}"
+        NumMasters: "{{ num_masters }}"
+        MasterInstanceType: "{{ ec2_master_instance_type }}"
+        MasterImageId: "{{ ec2_image }}"
+        MasterUserData: "{{ lookup('template', 'templates/user_data_master.j2') | b64encode }}"
+        MasterRootVolSize: "{{ os_defaults.masters.vol_sizes.root }}"
+        MasterRootVolType: gp2
+        MasterDockerVolSize: "{{ os_defaults.masters.vol_sizes.docker }}"
+        MasterDockerVolType: gp2
+        MasterEtcdVolSize: "{{ os_defaults.masters.vol_sizes.etcd }}"
+        MasterEtcdVolType: gp2
+        NumInfra: "{{ num_infra_nodes }}"
+        InfraInstanceType: "{{ ec2_infra_instance_type }}"
+        InfraImageId: "{{ ec2_image }}"
+        InfraUserData: "{{ lookup('template', 'templates/user_data_node.j2') | b64encode }}"
+        InfraRootVolSize: "{{ os_defaults.infra_nodes.vol_sizes.root }}"
+        InfraRootVolType: gp2
+        InfraDockerVolSize: "{{ os_defaults.infra_nodes.vol_sizes.docker }}"
+        InfraDockerVolType: gp2
+        NumNodes: "{{ num_app_nodes }}"
+        NodeInstanceType: "{{ ec2_node_instance_type }}"
+        NodeImageId: "{{ ec2_image }}"
+        NodeUserData: "{{ lookup('template', 'templates/user_data_node.j2') | b64encode }}"
+        NodeRootVolSize: "{{ os_defaults.app_nodes.vol_sizes.root }}"
+        NodeRootVolType: gp2
+        NodeDockerVolSize: "{{ os_defaults.app_nodes.vol_sizes.docker }}"
+        NodeDockerVolType: gp2

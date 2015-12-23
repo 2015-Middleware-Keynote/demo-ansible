@@ -1,27 +1,6 @@
 # vim: set ft=ansible:
----
-- hosts: localhost
-  connection: local
-  sudo: no
-  gather_facts: no
-  vars_files:
-  - ../vars.yml
-  vars:
-    cluster_hosts: "{{ groups['tag_env_' ~ cluster_id] }}"
-  tasks:
-  - fail:
-      msg: required values not set
-    when: cluster_id is not defined
-
-  - add_host:
-      name: "{{ item }}"
-      ansible_ssh_user: openshift
-      ansible_sudo: yes
-      groups: oo_hosts_to_register
-    with_items: cluster_hosts
-
 - name: Repository configuration
-  hosts: oo_hosts_to_register
+  hosts: cluster_hosts
   tasks:
   - name: Enable rhui extras channel
     command: yum-config-manager --enable rhui-REGION-rhel-server-extras
