@@ -65,4 +65,4 @@
   - vars.yml
   tasks:
   - include: tasks/smoke_projects.yml
-    when: run_smoke_tests | bool
+    when: run_smoke_tests | bool or run_only_smoke_tests | bool
