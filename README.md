@@ -59,5 +59,5 @@ the cluster id, environment size, and keypair:
 ```
 
 After the run has completed the openshift web console will be available at
-`https://openshift-master.<cluster id>.<r53 zone>:8443` and routes created for
+`https://openshift-master.<cluster id>.<r53 zone>` and routes created for
 applications will default to `<app name>.<project name>.<cluster id>.<r53 zone>`

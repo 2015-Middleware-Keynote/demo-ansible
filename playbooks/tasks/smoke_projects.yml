@@ -1,7 +1,7 @@
 # vim: set ft=ansible:
 ---
 - name: Create the workshop users
-  command: "htpasswd -b /etc/openshift/master/htpasswd {{ item }} {{ default_password }}"
+  command: "htpasswd -b /etc/origin/master/htpasswd {{ item }} {{ default_password }}"
   with_sequence: start=0 end={{ num_smoke_test_users }} format=user%02d
 
 - name: Find current projects list
