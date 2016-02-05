@@ -25,7 +25,6 @@
   tasks:
   - name: Enable rhui extras channel
     command: yum-config-manager --enable rhui-REGION-rhel-server-extras
-    when: register_result | changed
 
   - name: Create AOS yum repository configuration
     template:
