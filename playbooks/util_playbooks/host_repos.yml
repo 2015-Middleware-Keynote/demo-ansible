@@ -23,21 +23,26 @@
 - name: Repository configuration
   hosts: oo_hosts_to_register
   tasks:
-  - name: Configure OSE repository
-    copy:
-      src: ../files/ose3.repo
-      dest: /etc/yum.repos.d/ose3.repo
-      mode: 0644
-      owner: root
-      group: root
-    when: skip_subscription_management | bool
-
   - name: Enable rhui extras channel
     command: yum-config-manager --enable rhui-REGION-rhel-server-extras
-    when: skip_subscription_management | bool
+    when: register_result | changed
 
-  - name: Update current package set
-    yum:
-      name: '*'
-      state: latest
-    when: skip_subscription_management | bool
+  - name: Create AOS yum repository configuration
+    template:
+      src: ../templates/aos.repo.j2
+      dest: /etc/yum.repos.d/aos.repo
+      mode: 644
+    when: use_certificate_repos
+
+  - name: Copy Atomic OpenShift yum repository certificate
+    copy:
+      src: '{{ certificate_file }}'
+      dest: /var/lib/yum/
+    when: use_certificate_repos
+  
+  - name: Copy Atomic OpenShift yum repository key
+    copy:
+      src: '{{ certificate_key }}'
+      dest: /var/lib/yum/
+    when: use_certificate_repos
+

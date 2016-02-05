@@ -46,6 +46,12 @@ env_sizes = {'tiny': 1,
               help='Red Hat Subscription Management Password')
 @click.option('--skip-subscription-management', is_flag=True,
               help='Skip subscription management steps')
+@click.option('--use-certificate-repos', is_flag=True,
+              help='Uses certificate-based yum repositories for the AOS content. Requires providing paths to local certificate key and pem files.')
+@click.option('--certificate-file', help='Certificate file for the yum repository',
+              show_default=True)
+@click.option('--certificate-key', help='Certificate key for the yum repository',
+              show_default=True)
 @click.option('--no-confirm', is_flag=True,
               help='Skip confirmation prompt')
 @click.option('--run-smoke-tests', is_flag=True, help='Run workshop smoke tests')
@@ -63,7 +69,11 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
                     cluster_id=None, app_dns_prefix=None,
                     deployment_type=None, console_port=443, api_port=443,
                     rhsm_user=None, rhsm_pass=None,
-                    skip_subscription_management=False, run_smoke_tests=False,
+                    skip_subscription_management=False, 
+                    certificate_file=None,
+                    certificate_key=None,
+                    use_certificate_repos=False,
+                    run_smoke_tests=False,
                     num_smoke_test_users=None, run_only_smoke_tests=False,
                     default_password=None, verbose=0):
     click.echo('Configured values:')
@@ -89,6 +99,8 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
     click.echo('Host DNS entries will be created under the %s domain' % host_zone)
     click.echo('Application wildcard zone for this env will be %s' % wildcard_zone)
 
+    if use_certificate_repos:
+        click.echo('Certificate file %s and certificate key %s will be used for the yum repos' % (certificate_file, certificate_key))
 
     if run_smoke_tests or run_only_smoke_tests:
         click.echo('Smoke tests will be run following environment creation with %s users with password %s' % (num_smoke_test_users, default_password))
@@ -112,7 +124,7 @@ def launch_demo_env(env_size=None, region=None, ami=None, no_confirm=False,
     if run_only_smoke_tests:
         playbook = 'playbooks/projects_setup.yml'
 
-    command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s deployment_type=%s api_port=%s console_port=%s rhsm_user=%s rhsm_pass=%s skip_subscription_management=%s run_smoke_tests=%s run_only_smoke_tests=%s num_smoke_test_users=%s default_password=%s\' %s' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, deployment_type, api_port, console_port, rhsm_user, rhsm_pass, skip_subscription_management, run_smoke_tests, run_only_smoke_tests, num_smoke_test_users, default_password, playbook)
+    command='ansible-playbook -i inventory/aws/hosts -e \'cluster_id=%s ec2_region=%s ec2_image=%s ec2_keypair=%s ec2_master_instance_type=%s ec2_infra_instance_type=%s ec2_node_instance_type=%s r53_zone=%s r53_host_zone=%s r53_wildcard_zone=%s num_app_nodes=%s hexboard_size=%s deployment_type=%s api_port=%s console_port=%s rhsm_user=%s rhsm_pass=%s skip_subscription_management=%s use_certificate_repos=%s certificate_file=%s certificate_key=%s run_smoke_tests=%s run_only_smoke_tests=%s num_smoke_test_users=%s default_password=%s\' %s' % (cluster_id, region, ami, keypair, master_instance_type, infra_instance_type, node_instance_type, r53_zone, host_zone, wildcard_zone, env_sizes[env_size], env_size, deployment_type, api_port, console_port, rhsm_user, rhsm_pass, skip_subscription_management, use_certificate_repos, certificate_file, certificate_key, run_smoke_tests, run_only_smoke_tests, num_smoke_test_users, default_password, playbook)
 
     if verbose > 0:
         command += " -" + "".join(['v']*verbose)
