@@ -3,6 +3,7 @@
 - name: Register host(s)
   hosts: cluster_hosts
   serial: 1
+  gather_facts: no
   tasks:
   - name: Register host
     redhat_subscription:

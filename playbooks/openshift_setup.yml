@@ -1,56 +1,60 @@
 # vim: set ft=ansible:
 ---
-- hosts: localhost
+- name: 'Initial setup of groups'
+  hosts: localhost
   connection: local
-  sudo: no
+  become: no
   gather_facts: no
   tasks:
-  - fail:
+  - name: 'Validating options...'
+    fail:
       msg: required values not set
     when: cluster_id is not defined or ec2_region is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_master_instance_type is not defined or ec2_infra_instance_type is not defined or ec2_node_instance_type is not defined or r53_zone is not defined or r53_host_zone is not defined or r53_wildcard_zone is not defined or num_app_nodes is not defined or hexboard_size is not defined or rhsm_user is not defined or rhsm_pass is not defined or deployment_type is not defined
   - name: wait for ssh
     wait_for: "port=22 host={{ item }}"
     with_items: groups['tag_openshift-demo_' ~ cluster_id]
+  - include: tasks/group_setup.yml
 
-  - add_host:
-      ansible_ssh_user: openshift
-      ansible_sudo: yes
-      name: "{{ item }}"
-      groups: masters, etcd, nodes, cluster_hosts
-      openshift_node_labels:
-        region: master
-        zone: "{{ hostvars[item].ec2_placement }}"
-    with_items: groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_master']
-
-  - add_host:
-      ansible_ssh_user: openshift
-      ansible_sudo: yes
-      name: "{{ item }}"
-      groups: nodes, cluster_hosts
-      openshift_node_labels:
-        region: "{{ 'infra' if  hostvars[item]['ec2_tag_openshift-demo-' ~ cluster_id ~ '-node-type'] == 'infrastructure' else 'demo' }}"
-        zone: "{{ hostvars[item].ec2_placement }}"
-    with_items: groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_node']
-
-
-# Register any un-registered hosts to rhsm
-- include: util_playbooks/register_host.yml
-
-
-# Yum repo configuration
-- include: util_playbooks/host_repos.yml
-
-- hosts: cluster_hosts
+# The master DNS entry is used because it's valuable to have an easy hostname to SSH into
+- name: Configure master DNS entry
+  hosts: project_master
+  gather_facts: yes
+  become: no
   tasks:
-  - command: mkdir -p /etc/origin
-  - ini_file:
+  - name: Route53 entry for master
+    route53:
+      command: create
+      zone: "{{ r53_zone }}"
+      record: "openshift-master.{{ r53_host_zone }}"
+      ttl: 60
+      type: A
+      value: "{{ hostvars[groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_master'].0]['ec2_ip_address'] }}"
+      overwrite: yes
+    delegate_to: localhost
+    
+# Register hosts via RHSM (as required) and configure repos
+- include: subscriptions_and_repos.yml
+
+- name: Host Cleanup 
+  hosts: cluster_hosts
+  tasks:
+  - name: Create /etc/origin directory
+    command: mkdir -p /etc/origin
+
+  - name: Create aws.conf ini file
+    ini_file:
       dest: /etc/origin/aws.conf
       section: Global
       option: Zone
       value: "{{ ec2_placement }}"
 
+  - name: Update current package set
+    yum:
+      name: '*'
+      state: latest
 
 # Configure the instances
+# openshift_sdn_mtu is required again because of a bug in auto-detection of MTU
 - include: ../../openshift-ansible/playbooks/byo/openshift-cluster/config.yml
   vars_files:
   - ../../../../demo-ansible/playbooks/vars.yml
@@ -76,29 +80,22 @@
       - "aws"
       cloud-config:
       - "/etc/origin/aws.conf"
-   #openshift_node_sdn_mtu: 1450
+   #openshift_node_sdn_mtu: 8951
     openshift_master_debug_level: "{{ master_debug_level | default(debug_level, true) }}"
     openshift_master_access_token_max_seconds: 2419200
     openshift_master_identity_providers: "{{ identity_providers }}"
     openshift_master_api_port: "{{ console_port }}"
     openshift_master_console_port: "{{ console_port }}"
+    openshift_package_version: 3.1.1.6
     osm_cluster_network_cidr: 10.0.0.0/8
     osm_host_subnet_length: 16
     osm_default_subdomain: "{{ r53_wildcard_zone }}"
     osm_default_node_selector: "region=demo"
+    osm_use_cockpit: false
     openshift_master_cluster_method: native
     openshift_master_cluster_hostname: openshift.internal.{{ r53_host_zone }}
     openshift_master_cluster_public_hostname: openshift.{{ r53_host_zone }}
     os_firewall_enabled: False
 
 # Router, Registry, internal users and projects, priming
-- include: util_playbooks/post_setup.yml
-
-# Smoke projects
-- name: Setting up smoke projects...
-  hosts: oo_first_master
-  vars_files:
-  - vars.yml
-  tasks:
-  - include: tasks/smoke_projects.yml
-    when: run_smoke_tests | bool
+- include: post_setup.yml

@@ -1,23 +1,10 @@
 #cloud-config
 cloud_config_modules:
-- disk_setup
-- mounts
-- locale
-- set-passwords
-- yum-add-repo
-- package-update-upgrade-install
-- timezone
-- disable-ec2-metadata
-- runcmd
+- fs_setup
 
 mounts:
 - [ /dev/xvdb ]
 - [ /dev/xvdc, /var/lib/etcd, xfs, "defaults" ]
-
-disk_setup:
-  /dev/xvdb:
-    table_type: mbr
-    layout: True
 
 fs_setup:
 - label: etcd_storage
