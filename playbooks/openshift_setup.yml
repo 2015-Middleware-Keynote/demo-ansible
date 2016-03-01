@@ -92,7 +92,9 @@
     g_lb_hosts: []
     g_nfs_hosts: []
     g_master_hosts: "{{ groups.demo_masters | default([]) }}"
+    g_new_master_hosts: []
     g_node_hosts: "{{ groups.demo_nodes | default([]) }}"
+    g_new_node_hosts: []
     g_all_hosts: "{{ g_master_hosts | union(g_node_hosts) }}"
 
 # Router, Registry, internal users and projects, priming
