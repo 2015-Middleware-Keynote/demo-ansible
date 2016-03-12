@@ -24,6 +24,15 @@ These are the scripts used to stand up your own environment running the demo fro
       environment creation script
   - You will also need to add the private key to your ssh agent: `ssh-add <path to key file>`
 
+
+  | AMI | Amazon Region |
+  | --- | --- |
+  | ami-2051294a | us-east-1 (default) |
+  | ami-d1315fb1 | us-west-1 |
+  | ami-775e4f16 | us-west-2 |
+
+  For other regions: Search the AWS Console, i.e. EC2 -> AMIs -> "Public images" - `RHEL-7.2_HVM_GA-20151112-x86_64-1-Hourly2-GP2`
+
 ## Requirements
 
 - [Ansible](https://github.com/ansible/ansible) version 1.9.1 or greater
