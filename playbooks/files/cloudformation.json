@@ -126,6 +126,24 @@
       "Type": "String",
       "Default": "gp2"
     },
+    "RegistryVolumeSize": {
+      "Type": "Number",
+      "MinValue": "1",
+      "MaxValue": "16384",
+      "Default": "50"
+    },
+    "MetricsVolumeSize": {
+      "Type": "Number",
+      "MinValue": "1",
+      "MaxValue": "16384",
+      "Default": "100"
+    },
+    "LoggingVolumeSize": {
+      "Type": "Number",
+      "MinValue": "1",
+      "MaxValue": "16384",
+      "Default": "100"
+    },
     "NumMasters": {
       "Type": "Number",
       "AllowedValues": ["1", "3"],
@@ -1046,6 +1064,50 @@
           }
         ]
       }
+    },
+    "RegistryVolume": {
+      "Type": "AWS::EC2::Volume",
+      "DependsOn": ["InfraASG","InfraLC"],
+      "Properties": {
+        "AvailabilityZone" : {"Fn::Select": ["0", {"Ref": "SubnetAvailabilityZones"}]},
+        "Size" : { "Ref": "RegistryVolumeSize" },
+        "Tags": [ { "Key": "Name", "Value": {"Fn::Join": ["-", [{"Ref": "VpcName"}, "pv-registry"]]} } ],
+        "VolumeType" : "gp2"
+      }
+    },
+    "MetricsVolume": {
+      "Type": "AWS::EC2::Volume",
+      "DependsOn": ["InfraASG","InfraLC"],
+      "Properties": {
+        "AvailabilityZone" : {"Fn::Select": ["0", {"Ref": "SubnetAvailabilityZones"}]},
+        "Size" : { "Ref": "MetricsVolumeSize" },
+        "Tags": [ { "Key": "Name", "Value": {"Fn::Join": ["-", [{"Ref": "VpcName"}, "pv-metrics"]]} } ],
+        "VolumeType" : "gp2"
+      }
+    },
+    "LoggingVolume": {
+      "Type": "AWS::EC2::Volume",
+      "DependsOn": ["InfraASG","InfraLC"],
+      "Properties": {
+        "AvailabilityZone" : {"Fn::Select": ["0", {"Ref": "SubnetAvailabilityZones"}]},
+        "Size" : { "Ref": "LoggingVolumeSize" },
+        "Tags": [ { "Key": "Name", "Value": {"Fn::Join": ["-", [{"Ref": "VpcName"}, "pv-logging"]]} } ],
+        "VolumeType" : "gp2"
+      }
+    }
+  },
+  "Outputs" : {
+    "RegistryVolumeID" : {
+      "Description" : "Registry Volume ID",
+      "Value" : { "Ref": "RegistryVolume" }
+    },
+    "MetricsVolumeID" : {
+      "Description" : "Metrics Volume ID",
+      "Value" : { "Ref": "MetricsVolume" }
+    },
+    "LoggingVolumeID" : {
+      "Description" : "Logging Volume ID",
+      "Value" : { "Ref": "LoggingVolume" }
     }
   }
 }
