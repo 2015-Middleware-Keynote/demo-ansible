@@ -1,0 +1,51 @@
+---
+- name: 'Initial setup of groups'
+  hosts: localhost
+  connection: local
+  become: no
+  gather_facts: no
+  tasks:
+  - name: 'Validating options...'
+    fail:
+      msg: required values not set
+    when: cluster_id is not defined or ec2_region is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_master_instance_type is not defined or ec2_infra_instance_type is not defined or ec2_node_instance_type is not defined or r53_zone is not defined or r53_host_zone is not defined or r53_wildcard_zone is not defined or num_app_nodes is not defined or hexboard_size is not defined or rhsm_user is not defined or rhsm_pass is not defined or deployment_type is not defined
+  - name: wait for ssh
+    wait_for: "port=22 host={{ item }}"
+    with_items: groups['tag_openshift-demo_' ~ cluster_id]
+  - include: tasks/group_setup.yml
+
+- name: Unregister host(s)
+  hosts: cluster_hosts
+  serial: 1
+  tasks:
+  - name: Unregister host
+    redhat_subscription:
+      username: "{{ rhsm_user }}"
+      password: "{{ rhsm_pass }}"
+      state: absent
+    when: not (skip_subscription_management | bool)
+
+- name: Delete the EC2 items 
+  hosts: localhost
+  connection: local
+  become: no
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  tasks:
+  - name: Delete the Route53 entry for master
+    route53:
+      command: delete
+      zone: "{{ r53_zone }}"
+      record: "openshift-master.{{ r53_host_zone }}"
+      ttl: 60
+      type: A
+      value: "{{ hostvars[groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_master'].0]['ec2_ip_address'] }}"
+      overwrite: yes
+
+  - name: Destroy the CloudFormation Stack
+    cloudformation:
+      region: "{{ ec2_region }}"
+      stack_name: openshift-demo-{{ cluster_id }}
+      state: absent
+      template: files/cloudformation.json

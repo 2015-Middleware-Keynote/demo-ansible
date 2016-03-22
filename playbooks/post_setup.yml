@@ -1,0 +1,192 @@
+# vim: set ft=ansible:
+---
+- name: Setup groups
+  hosts: localhost
+  gather_facts: no
+  connection: local
+  become: no
+  tasks:
+  - include: tasks/group_setup.yml
+
+- name: Gather environment information
+  hosts: project_master
+  tasks:
+  - name: Determine kubernetes service IP
+    shell: "oc get service kubernetes -o yaml | grep clusterIP | awk '{print $2}'"
+    register: kube_svc_ip_local
+  - name: Set the kubernetes service IP fact
+    set_fact:
+      kube_svc_ip: "{{ kube_svc_ip_local.stdout }}"
+
+- name: Node post configuration
+  hosts: nodes
+  vars_files:
+  - vars.yml
+  tasks:
+  - name: Insert kuberenetes service IP as first resolver
+    lineinfile:
+      dest: /etc/resolv.conf
+      insertbefore: ^nameserver 172.18.*$
+      line: nameserver {{ hostvars[groups.project_master.0].kube_svc_ip }}
+      state: present
+
+  - name: Configure eth0 dhclient
+    lineinfile:
+      dest: /etc/dhcp/dhclient-eth0.conf
+      line: prepend domain-name-servers {{ hostvars[groups.project_master.0].kube_svc_ip }}
+      state: present
+      create: yes
+
+  - name: pre-pull images
+    command: "docker pull {{ item }}"
+    with_items: preload_images
+
+- name: User creation
+  hosts: masters
+  vars_files:
+  - vars.yml
+  tasks:
+  - name: Create the default users
+    command: "htpasswd -b /etc/origin/master/htpasswd {{ item.user }} {{ default_password }}"
+    with_items: users
+
+- name: Initial environment configuration
+  hosts: project_master
+  vars_files:
+  - vars.yml
+  vars:
+    proxy:
+      app_name: sketch
+      name: sketchproxy
+      project: default
+      region: demo
+    default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
+  tasks:
+  - name: Change the oc context
+    command: "oc config use-context {{ default_context }}"
+
+  - name: Switch to default project
+    command: oc project default
+
+  - name: Set nodeselector for the default project to be region=infra
+    shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: region=infra' | oc replace -f -"
+
+  - name: Verify whether a router exists or not
+    command: oadm router --dry-run --service-account=router
+    register: router_out
+    ignore_errors: true
+
+  - name: Create router cert temporary directory
+    file:
+      dest: "~{{ ansible_ssh_user }}/router_certs"
+      state: directory
+    when: router_out | failed
+
+  - name: Generate router certificate files
+    command: "oadm create-server-cert --signer-cert=/etc/origin/master/ca.crt --signer-key=/etc/origin/master/ca.key --signer-serial=/etc/origin/master/ca.serial.txt --hostnames='*.{{ r53_wildcard_zone }}' --cert={{ r53_wildcard_zone }}.crt --key={{ r53_wildcard_zone }}.key"
+    when: router_out | failed
+
+  - name: Assemble router PEM
+    assemble:
+      dest: "~{{ ansible_ssh_user }}/{{ r53_wildcard_zone }}.pem"
+      src: "~{{ ansible_ssh_user }}/router_certs"
+    when: router_out | failed
+
+  - name: Install router
+    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/origin/master/openshift-router.kubeconfig --service-account=router --images='{{ router_image_url }}'"
+    when: router_out | failed
+
+  # we should probably do some kind of actual check for router deployment
+  - name: Wait for router to deploy
+    pause:
+      seconds: 10
+
+  - name: Scale router
+    command: "oc scale --replicas={{ num_infra_nodes }} dc router"
+    when: router_out | failed
+
+  - name: Check whether a registry exists or not
+    command: oadm registry --dry-run
+    register: registry_out
+    ignore_errors: true
+
+  - name: Install registry
+    command: "oadm registry --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
+    when: registry_out | failed
+
+    #- name: Storage configuration for registry
+    #  hosts: oo_first_master
+    #  vars_files:
+    #  - ../vars.yml
+    #  tasks:
+    #  - name: Create EBS volume for registry
+    #
+    #  - name: Create PV for registry EBS volume
+    #
+    #  - name: Switch to default project
+    #
+    #  - name: Create PVC for registry EBS volume in default project
+    #
+    #  - name: Attach registry with EBS PVC
+
+- name: Demonstration project configuration
+  hosts: project_master
+  vars:
+    default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
+  vars_files:
+  - vars.yml
+  tasks:
+  - name: Find current projects list
+    command: oc get projects
+    register: projects
+
+  - name: Create projects for internal users
+    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}' --admin='{{ item.user }}'"
+    when: item.project not in projects.stdout
+    with_items: users
+
+  - name: Switch to default project
+    command: oc project default
+
+  - name: Retrieve hexboard deployment configurations
+    command: oc get dc -n {{ hexboard.namespace }}
+    register: dcs_out
+    failed_when: "hexboard.name not in dcs_out"
+    ignore_errors: true
+
+  - name: Login as the demo user
+    command: oc login -u {{ users.0.user }} -p {{ default_password }} --certificate-authority=/etc/origin/master/ca.crt
+    when: dcs_out | failed
+
+  - name: "Get the demo user's token"
+    script: files/get_token.sh
+    register: auth_token
+    when: dcs_out | failed
+
+  - name: Set the token as a fact
+    set_fact:
+      access_token: "{{ auth_token.stdout }}"
+    when: dcs_out | failed
+
+  - name: Switch to the hexboard project
+    command: oc project {{ hexboard.namespace }}
+    when: dcs_out | failed
+
+  - name: Install the hexboard template file on the master
+    template:
+      dest: /root/hexboard_template.json
+      src: templates/hexboard_template.json.j2
+    when: dcs_out | failed
+
+  - name: Create the objects in the hexboard template
+    command: oc create -f /root/hexboard_template.json
+    when: dcs_out | failed
+    ignore_errors: true
+
+  - name: Start the hexboard build
+    command: oc start-build {{ hexboard.name }}
+    when: dcs_out | failed
+
+  - name: Change the oc context
+    command: "oc config use-context {{ default_context }}"
+    when: dcs_out | failed

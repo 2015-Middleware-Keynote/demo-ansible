@@ -6,6 +6,27 @@
 from ansible import errors
 import copy
 
+def oo_subnets_from_zones(zones, network_prefix, cluster_id):
+    ''' This filter plugin will create a ec2_vpc subnets list from a list of
+        zones
+    '''
+    if not issubclass(type(zones), list):
+        raise errors.AnsibleFilterError("|failed expects to filter on a list")
+    result = []
+    for i, zone in enumerate(zones):
+        z_info = dict(
+                cidr = "{0}{1}.0/24".format(network_prefix, i),
+                az = zone,
+                resource_tags = dict(
+                    env = cluster_id,
+                    Name = "{0}-subnet-{1}".format(cluster_id, i)
+                )
+        )
+        result.append(z_info)
+
+    return result
+
+
 def oo_dict_merge(data, dict_to_merge):
     ''' This filter plugin will merge two dicts.
     '''
@@ -26,4 +47,5 @@ class FilterModule(object):
     def filters(self):
         return {
             "oo_dict_merge": oo_dict_merge,
+            "oo_subnets_from_zones": oo_subnets_from_zones
         }

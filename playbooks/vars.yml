@@ -2,6 +2,7 @@
 debug_level: 3
 node_debug_level: 1
 master_debug_level:
+
 identity_providers:
 - name: htpasswd_auth
   login: true
@@ -23,6 +24,12 @@ preload_images:
 - jboss-eap-6/eap64-openshift:latest
 - kubernetes/guestbook:latest
 
+users:
+- user: demo
+  project: demo
+- user: cache
+  project: cache
+
 prime_user: cache
 prime_namespace: cache
 prime_images:
@@ -41,15 +48,30 @@ hexboard:
   img: openshift3/nodejs-010-rhel7:latest
 
 os_defaults:
-  regions:
-  - name: infra
-    count: 1
+  masters:
+    count: "{{ num_masters }}"
+    instance_type: "{{ ec2_master_instance_type }}"
+    vol_sizes:
+      root: 15
+      docker: 25
+      etcd: 25
+  infra_nodes:
+    count: "{{ num_infra_nodes }}"
     instance_type: "{{ ec2_infra_instance_type }}"
-    disk: 60
-  - name: demo
+    vol_sizes:
+      root: 30
+      docker: 25
+  app_nodes:
     count: "{{ num_app_nodes }}"
     instance_type: "{{ ec2_node_instance_type }}"
-    disk: 30
+    vol_sizes:
+      root: 30
+      docker: 25
+  hosted:
+    vol_sizes:
+      registry: 30
+      logging: 30
+      metrics: 30
 
 provider_defaults:
   ec2:
@@ -75,5 +97,3 @@ provider_defaults:
       - "{{ cluster_id }}-node"
       tags:
         openshift-node: "{{ cluster_id }}"
-
-

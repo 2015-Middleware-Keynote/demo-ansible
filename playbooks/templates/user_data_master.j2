@@ -1,33 +1,20 @@
 #cloud-config
 cloud_config_modules:
-- disk_setup
-- mounts
-- locale
-- set-passwords
-- yum-add-repo
-- package-update-upgrade-install
-- timezone
-- disable-ec2-metadata
-- runcmd
+- fs_setup
 
 mounts:
-- [ /dev/xvdb, /var/lib/openshift, xfs, "defaults" ]
-- [ /dev/xvdc ]
-
-disk_setup:
-  /dev/xvdb:
-    table_type: mbr
-    layout: True
+- [ /dev/xvdb ]
+- [ /dev/xvdc, /var/lib/etcd, xfs, "defaults" ]
 
 fs_setup:
 - label: etcd_storage
   filesystem: xfs
-  device: /dev/xvdb
+  device: /dev/xvdc
   partition: auto
 
 write_files:
 - content: |
-    DEVS='/dev/xvdc'
+    DEVS='/dev/xvdb'
     VG=docker_vg
   path: /etc/sysconfig/docker-storage-setup
   owner: root:root

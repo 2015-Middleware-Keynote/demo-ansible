@@ -1,27 +1,9 @@
 # vim: set ft=ansible:
----
-- hosts: localhost
-  connection: local
-  sudo: no
-  gather_facts: no
-  vars_files:
-  - ../vars.yml
-  vars:
-    cluster_hosts: "{{ groups['tag_env_' ~ cluster_id] }}"
-  tasks:
-  - fail:
-      msg: required values not set
-    when: cluster_id is not defined
-
-  - add_host:
-      name: "{{ item }}"
-      ansible_ssh_user: openshift
-      ansible_sudo: yes
-      groups: oo_hosts_to_register
-    with_items: cluster_hosts
-
 - name: Repository configuration
-  hosts: oo_hosts_to_register
+  hosts: cluster_hosts
+  gather_facts: no
+  vars:
+    aos_repo: 'https://mirror.ops.rhcloud.com/libra/rhui-rhel-server-7-ose/'
   tasks:
   - name: Enable rhui extras channel
     command: yum-config-manager --enable rhui-REGION-rhel-server-extras
@@ -29,7 +11,7 @@
 
   - name: Create AOS yum repository configuration
     template:
-      src: ../templates/aos.repo.j2
+      src: templates/aos.repo.j2
       dest: /etc/yum.repos.d/aos.repo
       mode: 644
     when: use_certificate_repos
@@ -37,12 +19,12 @@
   - name: Copy Atomic OpenShift yum repository certificate
     copy:
       src: '{{ certificate_file }}'
-      dest: /var/lib/yum/
+      dest: /var/lib/yum/client-cert.pem
     when: use_certificate_repos
   
   - name: Copy Atomic OpenShift yum repository key
     copy:
       src: '{{ certificate_key }}'
-      dest: /var/lib/yum/
+      dest: /var/lib/yum/client-key.pem
     when: use_certificate_repos
 
