@@ -505,6 +505,26 @@
         "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
       }
     },
+    "MasterIngressNodesAPITCP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": { "Ref": "MasterApiPort" },
+        "ToPort": { "Ref": "MasterApiPort" },
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressMastersAPITCP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": { "Ref": "MasterApiPort" },
+        "ToPort": { "Ref": "MasterApiPort" },
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
+      }
+    },
     "EtcdIngressEtcd": {
       "Type": "AWS::EC2::SecurityGroupIngress",
       "Properties":{
@@ -1067,7 +1087,6 @@
     },
     "RegistryVolume": {
       "Type": "AWS::EC2::Volume",
-      "DependsOn": ["InfraASG","InfraLC"],
       "Properties": {
         "AvailabilityZone" : {"Fn::Select": ["0", {"Ref": "SubnetAvailabilityZones"}]},
         "Size" : { "Ref": "RegistryVolumeSize" },
@@ -1077,7 +1096,6 @@
     },
     "MetricsVolume": {
       "Type": "AWS::EC2::Volume",
-      "DependsOn": ["InfraASG","InfraLC"],
       "Properties": {
         "AvailabilityZone" : {"Fn::Select": ["0", {"Ref": "SubnetAvailabilityZones"}]},
         "Size" : { "Ref": "MetricsVolumeSize" },
@@ -1087,7 +1105,6 @@
     },
     "LoggingVolume": {
       "Type": "AWS::EC2::Volume",
-      "DependsOn": ["InfraASG","InfraLC"],
       "Properties": {
         "AvailabilityZone" : {"Fn::Select": ["0", {"Ref": "SubnetAvailabilityZones"}]},
         "Size" : { "Ref": "LoggingVolumeSize" },

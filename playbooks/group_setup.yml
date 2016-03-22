@@ -1,0 +1,36 @@
+- name: 'Setup groups'
+  hosts: localhost
+  connection: local
+  become: no
+  tasks:
+  - name: wait for ssh
+    wait_for: "port=22 host={{ item }}"
+    with_items: groups['tag_openshift-demo_' ~ cluster_id]
+
+  - name: Add masters to requisite groups
+    add_host:
+      name: "{{ item }}"
+      groups: masters, etcd, nodes, cluster_hosts
+      openshift_node_labels:
+        region: "{{ cluster_id }}"
+        env: master
+        zone: "{{ hostvars[item].ec2_placement }}"
+    with_items: groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_master']
+  
+  - name: Create group for first master
+    add_host:
+      name: "{{ item }}"
+      groups: project_master
+    with_items: groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_master'].0
+  
+  - name: Add nodes to requisite groups
+    add_host:
+      name: "{{ item }}"
+      groups: nodes, cluster_hosts
+      openshift_node_labels:
+        region: "{{ cluster_id }}"
+        env: "{{ 'infra' if  hostvars[item]['ec2_tag_openshift-demo-' ~ cluster_id ~ '-node-type'] == 'infrastructure' else 'demo' }}"
+        zone: "{{ hostvars[item].ec2_placement }}"
+    with_items: groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_node']
+  
+  

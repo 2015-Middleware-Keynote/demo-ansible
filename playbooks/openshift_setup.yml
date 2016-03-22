@@ -1,102 +1,8 @@
 # vim: set ft=ansible:
 ---
-- name: 'Bootstrapping environment'
-  hosts: localhost
-  connection: local
-  sudo: no
-  gather_facts: no
-  vars_files:
-  - vars.yml
-  vars:
-    vpc_subnet_azs: "{{ lookup('ec2_zones_by_region', ec2_region) }}"
-    #vpc_subnet_count: "{{ vpc_subnet_azs | oo_split | length }}"
-    vpc_subnet_count: 1
-  tasks:
-  - name: 'Validating options'
-    fail:
-      msg: required values not set
-    when: >
-      cluster_id is not defined
-      or ec2_region is not defined 
-      or ec2_image is not defined 
-      or ec2_keypair is not defined 
-      or ec2_master_instance_type is not defined 
-      or ec2_infra_instance_type is not defined or 
-      ec2_node_instance_type is not defined or 
-      r53_zone is not defined 
-      or r53_host_zone is not defined 
-      or r53_wildcard_zone is not defined 
-      or num_app_nodes is not defined 
-      or hexboard_size is not defined or 
-      rhsm_user is not defined or 
-      rhsm_pass is not defined or 
-      deployment_type is not defined
+- include: cloudformation_setup.yml
 
-  - name: Launch the CloudFormation Template
-    cloudformation:
-      region: "{{ ec2_region }}"
-      stack_name: openshift-demo-{{ cluster_id }}
-      state: present
-      tags:
-        openshift-demo: "{{ cluster_id }}"
-      template: files/cloudformation.json
-      template_parameters:
-        Route53HostedZone: "{{ r53_zone }}."
-        MasterApiPort: "{{ api_port }}"
-        MasterHealthTarget: "TCP:{{ api_port }}"
-        MasterClusterHostname: openshift.internal.{{ r53_host_zone }}
-        MasterClusterPublicHostname: openshift.{{ r53_host_zone }}
-        AppWildcardDomain: "*.{{ r53_wildcard_zone }}"
-        VpcCidrBlock: 172.18.0.0/16
-        VpcName: "{{ cluster_id }}"
-        NumSubnets: "{{ vpc_subnet_count }}"
-        SubnetAvailabilityZones: "{{ vpc_subnet_azs }}"
-        SubnetCidrBlocks: 172.18.0.0/24,172.18.1.0/24,172.18.2.0/24,172.18.3.0/24
-        KeyName: "{{ ec2_keypair }}"
-        NumMasters: "{{ num_masters }}"
-        MasterInstanceType: "{{ ec2_master_instance_type }}"
-        MasterImageId: "{{ ec2_image }}"
-        MasterUserData: "{{ lookup('template', 'templates/user_data_master.j2') | b64encode }}"
-        MasterRootVolSize: "{{ os_defaults.masters.vol_sizes.root }}"
-        MasterRootVolType: gp2
-        MasterDockerVolSize: "{{ os_defaults.masters.vol_sizes.docker }}"
-        MasterDockerVolType: gp2
-        MasterEtcdVolSize: "{{ os_defaults.masters.vol_sizes.etcd }}"
-        MasterEtcdVolType: gp2
-        NumInfra: "{{ num_infra_nodes }}"
-        InfraInstanceType: "{{ ec2_infra_instance_type }}"
-        InfraImageId: "{{ ec2_image }}"
-        InfraUserData: "{{ lookup('template', 'templates/user_data_node.j2') | b64encode }}"
-        InfraRootVolSize: "{{ os_defaults.infra_nodes.vol_sizes.root }}"
-        InfraRootVolType: gp2
-        InfraDockerVolSize: "{{ os_defaults.infra_nodes.vol_sizes.docker }}"
-        InfraDockerVolType: gp2
-        NumNodes: "{{ num_app_nodes }}"
-        NodeInstanceType: "{{ ec2_node_instance_type }}"
-        NodeImageId: "{{ ec2_image }}"
-        NodeUserData: "{{ lookup('template', 'templates/user_data_node.j2') | b64encode }}"
-        NodeRootVolSize: "{{ os_defaults.app_nodes.vol_sizes.root }}"
-        NodeRootVolType: gp2
-        NodeDockerVolSize: "{{ os_defaults.app_nodes.vol_sizes.docker }}"
-        NodeDockerVolType: gp2
-    register: cf_output
-
-  - name: Store CloudFormation-generated volume IDs as facts
-    set_fact:
-      registry_volume: "{{ cf_output.stack_outputs.RegistryVolumeID }}"
-      metrics_volume: "{{ cf_output.stack_outputs.MetricsVolumeID }}"
-      logging_volume: "{{ cf_output.stack_outputs.LoggingVolumeID }}"
-
-- name: 'Initial setup of groups'
-  hosts: localhost
-  connection: local
-  become: no
-  gather_facts: no
-  tasks:
-  - name: wait for ssh
-    wait_for: "port=22 host={{ item }}"
-    with_items: groups['tag_openshift-demo_' ~ cluster_id]
-  - include: tasks/group_setup.yml
+- include: group_setup.yml
 
 # The master DNS entry is used because it's valuable to have an easy hostname to SSH into
 - name: Configure master DNS entry
@@ -153,7 +59,6 @@
     when: sshd_config_result | changed
 
 # Configure the instances
-# openshift_sdn_mtu is required again because of a bug in auto-detection of MTU
 - include: ../../openshift-ansible/playbooks/byo/openshift-cluster/config.yml
   vars_files:
   - ../../../../demo-ansible/playbooks/vars.yml
@@ -179,17 +84,18 @@
       - "aws"
       cloud-config:
       - "/etc/origin/aws.conf"
-   #openshift_node_sdn_mtu: 8951
     openshift_master_debug_level: "{{ master_debug_level | default(debug_level, true) }}"
     openshift_master_access_token_max_seconds: 2419200
     openshift_master_identity_providers: "{{ identity_providers }}"
     openshift_master_api_port: "{{ console_port }}"
     openshift_master_console_port: "{{ console_port }}"
     openshift_package_version: 3.1.1.6
+    openshift_master_logging_public_url: "https://kibana.{{ r53_wildcard_zone }}"
+    openshift_master_metrics_public_url: "https://metrics.{{ r53_wildcard_zone }}/hawkular/metrics"
     osm_cluster_network_cidr: 10.0.0.0/8
     osm_host_subnet_length: 16
     osm_default_subdomain: "{{ r53_wildcard_zone }}"
-    osm_default_node_selector: "region=demo"
+    osm_default_node_selector: "env=demo"
     osm_use_cockpit: false
     openshift_master_cluster_method: native
     openshift_master_cluster_hostname: openshift.internal.{{ r53_host_zone }}

@@ -1,22 +1,8 @@
 # vim: set ft=ansible:
 ---
-- name: Setup groups
-  hosts: localhost
-  gather_facts: no
-  connection: local
-  become: no
-  tasks:
-  - include: tasks/group_setup.yml
-
-- name: Gather environment information
-  hosts: project_master
-  tasks:
-  - name: Determine kubernetes service IP
-    shell: "oc get service kubernetes -o yaml | grep clusterIP | awk '{print $2}'"
-    register: kube_svc_ip_local
-  - name: Set the kubernetes service IP fact
-    set_fact:
-      kube_svc_ip: "{{ kube_svc_ip_local.stdout }}"
+# to get the storage volume info and set up groups in case this playbook is run by itself
+- include: cloudformation_setup.yml
+- include: group_setup.yml
 
 - name: Node post configuration
   hosts: nodes
@@ -29,13 +15,21 @@
 
 - name: User creation
   hosts: masters
+  vars:
+    default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
   vars_files:
   - vars.yml
   tasks:
+  - name: Change the oc context
+    command: "oc config use-context {{ default_context }}"
+
+  - name: Switch to default project
+    command: oc project default
+
   - name: Create the default users
     command: "htpasswd -b /etc/origin/master/htpasswd {{ item.user }} {{ default_password }}"
     with_items: users
-
+  
 - name: Configure default project
   hosts: project_master
   vars_files:
@@ -49,8 +43,8 @@
   - name: Switch to default project
     command: oc project default
 
-  - name: Set nodeselector for the default project to be region=infra
-    shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: region=infra' | oc replace -f -"
+  - name: Set nodeselector for the default project to be env=infra
+    shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: env=infra' | oc replace -f -"
 
 - name: Installation and Configuration of Router
   hosts: project_master
@@ -260,6 +254,192 @@
     command: oc patch dc/docker-registry -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ default_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
     when: fsgroup_out | failed
 
+- name: Installation and Configuration of Log Aggregation
+  hosts: project_master
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  vars:
+    default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
+  tasks:
+
+  # make sure that we are using the default user (system:admin) and the default project
+  - name: Change the oc context
+    command: "oc config use-context {{ default_context }}"
+
+  - name: Check for the logging project
+    command: "oc get project logging"
+    register: logging_out
+    ignore_errors: true
+  
+  # we will eventually want to look at the logging and metrics project, so
+  # this is useful
+  - name: Make admin user a cluster-admin
+    command: oadm policy add-cluster-role-to-user cluster-admin admin
+
+  # eventually we will change the region to be appropriate and this command will need to change
+  - name: Create the logging project
+    command: "oadm new-project logging"
+    when: logging_out | failed
+
+  - name: Remove the default node selector on the logging project
+    command: oc patch namespace/logging -p '{"metadata":{"annotations":{"openshift.io/node-selector":""}}}'
+    
+  - name: Switch to the logging project
+    command: "oc project logging"
+
+  - name: Check for logging-deployer secret
+    command: "oc get secret logging-deployer"
+    register: logging_deployer_secret_out
+    ignore_errors: true
+
+  - name: Create the null logging-deployer secret
+    command: oc secrets new logging-deployer nothing=/dev/null
+    when: logging_deployer_secret_out | failed
+
+  - name: Check for logging-deployer service account
+    command: oc get sa logging-deployer
+    register: logging_deployer_sa_out
+    ignore_errors: true
+
+  - name: Create the logging-deployer service account
+    shell: 'echo ''{"apiVersion":"v1","kind":"ServiceAccount","metadata":{"name":"logging-deployer"},"secrets":[{"name":"logging-deployer"}]}'' | oc create -f -'
+    when: logging_deployer_sa_out | failed
+
+  - name: Wait for the logging-deployer secrets
+    shell: "oc get secrets | grep logging-deployer-token | wc -l"
+    register: deployer_token_out
+    until: deployer_token_out.stdout | search("2")
+    retries: 15
+    delay: 10
+
+  - name: Grant the edit role to the logging-deployer service account
+    command: oc policy add-role-to-user edit system:serviceaccount:logging:logging-deployer
+
+  - name: Put the fluentd service account in the privileged SCC
+    command: oadm policy add-scc-to-user privileged system:serviceaccount:logging:aggregated-logging-fluentd
+
+  - name: Give fluentd cluster-reader permissions
+    command: oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:logging:aggregated-logging-fluentd
+
+  # if the artifacts are already deployed, don't process the deployer template
+  - name: Check for the deployed artifacts
+    command: oc get template logging-support-template
+    register: logging_support_template_out
+    ignore_errors: true
+
+  - name: Instantiate the logging deployer via the template
+    shell: >
+      oc process logging-deployer-template -n openshift 
+      -v KIBANA_HOSTNAME=kibana."{{ r53_wildcard_zone }}" 
+      -v PUBLIC_MASTER_URL=https://openshift."{{ r53_host_zone }}" 
+      -v ES_CLUSTER_SIZE=1 
+      -v ES_INSTANCE_RAM=1024M | oc create -f -
+    when: logging_support_template_out | failed
+
+  - name: Wait for the deployer to finish
+    shell: "oc get pod | grep logging-deployer"
+    register: deployer_output
+    until: deployer_output.stdout | search("logging-deployer.*Completed.*")
+    retries: 15
+    delay: 10
+
+  - name: Determine elastic search DC
+    shell: "oc get dc | awk '/logging-es-[a-zA-Z0-9]*/{ print $1 }'"
+    register: logging_es_out
+
+  - name: Modify the kibana DC with a node selector for infra
+    command: oc patch dc/logging-kibana -p '{"spec":{"template":{"spec":{"nodeSelector":{"env":"infra"}}}}}'
+
+  - name: Modify the es DC with a node selector for infra
+    command: oc patch dc/{{ logging_es_out.stdout }} -p '{"spec":{"template":{"spec":{"nodeSelector":{"env":"infra"}}}}}'
+
+  # if the image streams exist, don't process the support template
+  - name: Check for logging-kibana imagestream
+    command: oc get is logging-kibana
+    register: kibana_is_out
+    ignore_errors: true
+
+  - name: Process the logging support template
+    shell: "oc process logging-support-template | oc create -f -"
+    when: kibana_is_out | failed
+
+  # we use a template to then lay down YAML to create the PV
+  # this sets facts that are then consumed in the template
+  - name: Set the facts for the logging PV template
+    set_fact:
+      pv_name: "logging-pv"
+      capacity: "100"
+      volid: "{{ hostvars['localhost']['logging_volume'] }}"
+      access_mode: "ReadWriteMany"
+      
+  - name: Create a YAML file for the PV for the logging volume
+    template:
+      src: templates/pv.yaml.j2
+      dest: /root/logging-pv.yaml
+
+  - name: Check for logging PV
+    command: oc get pv "{{ pv_name }}"
+    register: logging_pv_out
+    ignore_errors: true
+
+  # as before
+  - name: Set the facts for the logging PVC template
+    set_fact:
+      claim_name: "logging-pvc"
+      capacity: "100"
+      access_mode: "ReadWriteMany"
+      
+  - name: Check for logging PVC
+    command: oc get pvc "{{ claim_name }}"
+    register: logging_pvc_out
+    ignore_errors: true
+
+  - name: Create a YAML file for the PVC for the logging volume
+    template:
+      src: templates/pvc.yaml.j2
+      dest: /root/logging-pvc.yaml
+
+  - name: Create PV from YAML for logging EBS volume
+    command: oc create -f /root/logging-pv.yaml
+    when: logging_pv_out | failed
+
+  - name: Create PVC from YAML for logging EBS volume
+    command: oc create -f /root/logging-pvc.yaml
+    when: logging_pvc_out | failed
+
+  - name: Check if es is still using empty directory
+    command: "oc volume dc/{{ logging_es_out.stdout }}"
+    register: logging_dc_out
+
+  - name: Attach volume to es DC
+    command: >
+      oc volume dc/{{ logging_es_out.stdout }} --add --overwrite -t persistentVolumeClaim
+      --claim-name=logging-pvc --name=elasticsearch-storage
+    when: "'empty directory' in logging_dc_out.stdout"
+
+  - name: Check if fsGroup is set in logging DC
+    shell: "oc get dc/{{ logging_es_out.stdout }} -o yaml | grep fsGroup"
+    register: fsgroup_out
+    ignore_errors: true
+
+  - name: Determine logging project supplemental group
+    command: oc get project logging -o json
+    register: logging_project_out 
+    when: fsgroup_out | failed
+
+  - name: Process the logging project json into a fact
+    set_fact:
+      logging_project_json: "{{ logging_project_out.stdout | from_json }}"
+    when: fsgroup_out | failed
+
+  - name: Patch the es DC with the fsGroup
+    command: oc patch dc/{{ logging_es_out.stdout }} -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ logging_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
+    when: fsgroup_out | failed
+
+  - name: Scale fluentd to number of nodes
+    command: oc scale dc/logging-fluentd --replicas={{ groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_node'] | count }}
+
 - name: Demonstration project configuration
   hosts: project_master
   vars:
@@ -273,16 +453,15 @@
 
   - name: Create projects for internal users
     command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}' --admin='{{ item.user }}'"
-    when: item.project not in projects.stdout
+    when: item.project not in projects.stdout and item.project != "empty"
     with_items: users
 
   - name: Switch to default project
     command: oc project default
 
   - name: Retrieve hexboard deployment configurations
-    command: oc get dc -n {{ hexboard.namespace }}
+    command: oc get dc/{{ hexboard.name }} -n {{ hexboard.namespace }}
     register: dcs_out
-    failed_when: "hexboard.name not in dcs_out"
     ignore_errors: true
 
   - name: Login as the demo user

@@ -1,0 +1,17 @@
+# vim: set ft=ansible:
+---
+- name: 'Bootstrapping or Refreshing Environment'
+  hosts: localhost
+  connection: local
+  sudo: no
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  vars:
+    vpc_subnet_azs: "{{ lookup('ec2_zones_by_region', ec2_region) }}"
+    #vpc_subnet_count: "{{ vpc_subnet_azs | oo_split | length }}"
+    vpc_subnet_count: 1
+  tasks:
+  - include: tasks/validator.yml
+  - include: tasks/cloudformation.yml
+
