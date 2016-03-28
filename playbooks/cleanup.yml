@@ -1,18 +1,7 @@
 ---
-- name: 'Initial setup of groups'
-  hosts: localhost
-  connection: local
-  become: no
-  gather_facts: no
-  tasks:
-  - name: 'Validating options...'
-    fail:
-      msg: required values not set
-    when: cluster_id is not defined or ec2_region is not defined or ec2_image is not defined or ec2_keypair is not defined or ec2_master_instance_type is not defined or ec2_infra_instance_type is not defined or ec2_node_instance_type is not defined or r53_zone is not defined or r53_host_zone is not defined or r53_wildcard_zone is not defined or num_app_nodes is not defined or hexboard_size is not defined or rhsm_user is not defined or rhsm_pass is not defined or deployment_type is not defined
-  - name: wait for ssh
-    wait_for: "port=22 host={{ item }}"
-    with_items: groups['tag_openshift-demo_' ~ cluster_id]
-  - include: tasks/group_setup.yml
+# to get the storage volume info and set up groups in case this playbook is run by itself
+- include: cloudformation_setup.yml
+- include: group_setup.yml
 
 - name: Unregister host(s)
   hosts: cluster_hosts
@@ -24,6 +13,45 @@
       password: "{{ rhsm_pass }}"
       state: absent
     when: not (skip_subscription_management | bool)
+
+# We have to clean out the things using volumes before we can
+# delete the volumes
+- name: Clean the OpenShift environment
+  hosts: project_master
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  vars:
+    default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
+  tasks:
+  - name: Change the oc context
+    command: "oc config use-context {{ default_context }}"
+
+  - name: Switch to default project
+    command: oc project default
+
+  # delete the docker registry and then the PV/PVC
+  - name: Remove docker registry
+    command: oc delete all -l docker-registry=default
+    ignore_errors: true
+
+  - name: Remove registry pv and pvc
+    command: oc delete pvc/registry-pvc pv/registry-pv
+    ignore_errors: true
+
+  - name: Remove the logging project
+    command: oc delete project logging
+    ignore_errors: true
+
+  - name: Remove the logging pv
+    command: oc delete pv/logging-pv
+    ignore_errors: true
+
+  # I don't know of a good way to determine when the volumes are
+  # un-mounted, so instead we just sleep for 60 seconds
+  - name: Pause to wait for volumes to be unmounted
+    pause:
+      seconds: 90
 
 - name: Delete the EC2 items 
   hosts: localhost
@@ -42,6 +70,29 @@
       type: A
       value: "{{ hostvars[groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_master'].0]['ec2_ip_address'] }}"
       overwrite: yes
+    ignore_errors: true
+
+  - name: Detach the registry, metrics, and logging volumes
+    ec2_vol:
+      id: "{{ item }}"
+      instance: None
+      region: "{{ ec2_region }}"
+    with_items:
+    - "{{ hostvars['localhost']['registry_volume'] }}" 
+    - "{{ hostvars['localhost']['metrics_volume'] }}" 
+    - "{{ hostvars['localhost']['logging_volume'] }}" 
+    ignore_errors: true
+
+  - name: Delete the registry, metrics, and logging volumes
+    ec2_vol:
+      id: "{{ item }}"
+      state: absent
+      region: "{{ ec2_region }}"
+    with_items:
+    - "{{ hostvars['localhost']['registry_volume'] }}" 
+    - "{{ hostvars['localhost']['metrics_volume'] }}" 
+    - "{{ hostvars['localhost']['logging_volume'] }}" 
+    ignore_errors: true
 
   - name: Destroy the CloudFormation Stack
     cloudformation:

@@ -223,7 +223,7 @@ def launch_demo_env(num_nodes,
   elif cleanup:
     playbooks = ['playbooks/cleanup.yml']
   else:
-    playbooks = ['playbooks/openshift_setup.yml', 'playbooks/projects_setup.yml']
+    playbooks = ['playbooks/cloudformation_setup.yml','playbooks/openshift_setup.yml', 'playbooks/projects_setup.yml']
 
   for playbook in playbooks:
 

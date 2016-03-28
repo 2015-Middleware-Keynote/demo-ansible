@@ -4,7 +4,8 @@
     name: "{{ item }}"
     groups: masters, etcd, nodes, cluster_hosts
     openshift_node_labels:
-      region: master
+      region: "{{ cluster_id }}"
+      env: master
       zone: "{{ hostvars[item].ec2_placement }}"
   with_items: groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_master']
 
@@ -19,6 +20,7 @@
     name: "{{ item }}"
     groups: nodes, cluster_hosts
     openshift_node_labels:
-      region: "{{ 'infra' if  hostvars[item]['ec2_tag_openshift-demo-' ~ cluster_id ~ '-node-type'] == 'infrastructure' else 'demo' }}"
+      region: "{{ cluster_id }}"
+      env: "{{ 'infra' if  hostvars[item]['ec2_tag_openshift-demo-' ~ cluster_id ~ '-node-type'] == 'infrastructure' else 'demo' }}"
       zone: "{{ hostvars[item].ec2_placement }}"
   with_items: groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_node']

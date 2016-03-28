@@ -1,7 +1,7 @@
 ---
 debug_level: 3
-node_debug_level: 1
-master_debug_level:
+node_debug_level: 2
+master_debug_level: 2
 
 identity_providers:
 - name: htpasswd_auth
@@ -27,18 +27,8 @@ preload_images:
 users:
 - user: demo
   project: demo
-- user: cache
-  project: cache
-
-prime_user: cache
-prime_namespace: cache
-prime_images:
-- image: nodejs-010-rhel7
-  tag: latest
-  prefix: openshift3
-- image: eap64-openshift
-  tag: latest
-  prefix: jboss-eap-6
+- user: admin
+  project: empty
 
 hexboard:
   namespace: demo

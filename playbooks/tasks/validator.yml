@@ -1,0 +1,19 @@
+- name: 'Validating options'
+  fail:
+    msg: required values not set
+  when: >
+    cluster_id is not defined
+    or ec2_region is not defined 
+    or ec2_image is not defined 
+    or ec2_keypair is not defined 
+    or ec2_master_instance_type is not defined 
+    or ec2_infra_instance_type is not defined or 
+    ec2_node_instance_type is not defined or 
+    r53_zone is not defined 
+    or r53_host_zone is not defined 
+    or r53_wildcard_zone is not defined 
+    or num_app_nodes is not defined 
+    or hexboard_size is not defined or 
+    rhsm_user is not defined or 
+    rhsm_pass is not defined or 
+    deployment_type is not defined
