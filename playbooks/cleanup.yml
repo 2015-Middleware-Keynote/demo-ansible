@@ -47,6 +47,10 @@
     command: oc delete pv/logging-pv
     ignore_errors: true
 
+  - name: Remove everything in the openshift-infra project
+    command: oc delete all --all -n openshift-infra
+    ignore_errors: true
+
   # I don't know of a good way to determine when the volumes are
   # un-mounted, so instead we just sleep for 60 seconds
   - name: Pause to wait for volumes to be unmounted

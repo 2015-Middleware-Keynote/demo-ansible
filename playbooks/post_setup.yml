@@ -29,7 +29,7 @@
   - name: Create the default users
     command: "htpasswd -b /etc/origin/master/htpasswd {{ item.user }} {{ default_password }}"
     with_items: users
-  
+
 - name: Configure default project
   hosts: project_master
   vars_files:
@@ -119,7 +119,7 @@
     register: master_key_result
 
   - name: Restart atomic-openshift-master-controllers service
-    service: 
+    service:
       name: atomic-openshift-master-controllers
       state: restarted
     when: (master_id_result | changed) or (master_key_result | changed)
@@ -150,7 +150,7 @@
     register: node_key_result
 
   - name: Restart atomic-openshift-node service
-    service: 
+    service:
       name: atomic-openshift-node
       state: restarted
     when: (node_id_result | changed) or (node_key_result | changed)
@@ -167,7 +167,7 @@
   # make sure that we are using the default user (system:admin) and the default project
   - name: Change the oc context
     command: "oc config use-context {{ default_context }}"
-  
+
   - name: Switch to default project
     command: oc project default
 
@@ -187,8 +187,7 @@
       pv_name: "registry-pv"
       capacity: "50"
       volid: "{{ hostvars['localhost']['registry_volume'] }}"
-      access_mode: "ReadWriteMany"
-      
+
   - name: Create a YAML file for the PV for the Registry volume
     template:
       src: templates/pv.yaml.j2
@@ -205,7 +204,7 @@
       claim_name: "registry-pvc"
       capacity: "50"
       access_mode: "ReadWriteMany"
-      
+
   - name: Check for registry PVC
     command: oc get pvc "{{ claim_name }}"
     register: registry_pvc_out
@@ -242,7 +241,7 @@
 
   - name: Determine default project supplemental group
     command: oc get project default -o json
-    register: default_project_out 
+    register: default_project_out
     when: fsgroup_out | failed
 
   - name: Process the default project json into a fact
@@ -271,7 +270,7 @@
     command: "oc get project logging"
     register: logging_out
     ignore_errors: true
-  
+
   # we will eventually want to look at the logging and metrics project, so
   # this is useful
   - name: Make admin user a cluster-admin
@@ -284,7 +283,7 @@
 
   - name: Remove the default node selector on the logging project
     command: oc patch namespace/logging -p '{"metadata":{"annotations":{"openshift.io/node-selector":""}}}'
-    
+
   - name: Switch to the logging project
     command: "oc project logging"
 
@@ -309,7 +308,7 @@
   - name: Wait for the logging-deployer secrets
     shell: "oc get secrets | grep logging-deployer-token | wc -l"
     register: deployer_token_out
-    until: deployer_token_out.stdout | search("2")
+    until: deployer_token_out | success
     retries: 15
     delay: 10
 
@@ -330,17 +329,17 @@
 
   - name: Instantiate the logging deployer via the template
     shell: >
-      oc process logging-deployer-template -n openshift 
-      -v KIBANA_HOSTNAME=kibana."{{ r53_wildcard_zone }}" 
-      -v PUBLIC_MASTER_URL=https://openshift."{{ r53_host_zone }}" 
-      -v ES_CLUSTER_SIZE=1 
+      oc process logging-deployer-template -n openshift
+      -v KIBANA_HOSTNAME=kibana."{{ r53_wildcard_zone }}"
+      -v PUBLIC_MASTER_URL=https://openshift."{{ r53_host_zone }}"
+      -v ES_CLUSTER_SIZE=1
       -v ES_INSTANCE_RAM=1024M | oc create -f -
     when: logging_support_template_out | failed
 
   - name: Wait for the deployer to finish
-    shell: "oc get pod | grep logging-deployer"
+    shell: "oc get pod | awk '/logging-deployer-[a-zA-Z0-9]*/{ print $3 }'"
     register: deployer_output
-    until: deployer_output.stdout | search("logging-deployer.*Completed.*")
+    until: deployer_output.stdout | search("Completed")
     retries: 15
     delay: 10
 
@@ -371,8 +370,7 @@
       pv_name: "logging-pv"
       capacity: "100"
       volid: "{{ hostvars['localhost']['logging_volume'] }}"
-      access_mode: "ReadWriteMany"
-      
+
   - name: Create a YAML file for the PV for the logging volume
     template:
       src: templates/pv.yaml.j2
@@ -389,7 +387,7 @@
       claim_name: "logging-pvc"
       capacity: "100"
       access_mode: "ReadWriteMany"
-      
+
   - name: Check for logging PVC
     command: oc get pvc "{{ claim_name }}"
     register: logging_pvc_out
@@ -425,7 +423,7 @@
 
   - name: Determine logging project supplemental group
     command: oc get project logging -o json
-    register: logging_project_out 
+    register: logging_project_out
     when: fsgroup_out | failed
 
   - name: Process the logging project json into a fact
@@ -439,6 +437,134 @@
 
   - name: Scale fluentd to number of nodes
     command: oc scale dc/logging-fluentd --replicas={{ groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_node'] | count }}
+
+- name: Installation and Configuration of Metrics
+  hosts: project_master
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  vars:
+    default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
+  tasks:
+
+  # make sure that we are using the default user (system:admin) and the default project
+  - name: Change the oc context
+    command: "oc config use-context {{ default_context }}"
+
+  - name: Change to the openshift-infra project
+    command: "oc project openshift-infra"
+
+  - name: Force metrics components into env=infra
+    command: oc patch namespace/openshift-infra -p '{"metadata":{"annotations":{"openshift.io/node-selector":"env=infra"}}}'
+
+  - name: Check for metrics-deployer service account
+    command: oc get sa metrics-deployer
+    register: metrics_deployer_sa_out
+    ignore_errors: true
+
+  - name: Create the metrics-deployer service account
+    shell: 'echo ''{"apiVersion":"v1","kind":"ServiceAccount","metadata":{"name":"metrics-deployer"},"secrets":[{"name":"metrics-deployer"}]}'' | oc create -f -'
+    when: metrics_deployer_sa_out | failed
+
+  - name: Wait for the metrics-deployer secrets
+    shell: "oc get secrets | grep metrics-deployer-token"
+    register: metrics_token_out
+    until: metrics_token_out | success
+    retries: 15
+    delay: 10
+
+  - name: Grant the edit role to the metrics-deployer service account
+    command: oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer
+
+  - name: Grant the cluster-reader role to the heapster service account
+    command: oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster
+
+  - name: Check for metrics-deployer secret
+    command: "oc get secret metrics-deployer"
+    register: metrics_deployer_secret_out
+    ignore_errors: true
+
+  - name: Create the null metrics-deployer secret
+    command: oc secrets new metrics-deployer nothing=/dev/null
+    when: metrics_deployer_secret_out | failed
+
+  # we use a template to then lay down YAML to create the PV
+  # this sets facts that are then consumed in the template
+  - name: Set the facts for the metrics PV template
+    set_fact:
+      pv_name: "metrics-pv"
+      capacity: "100"
+      volid: "{{ hostvars['localhost']['metrics_volume'] }}"
+
+  - name: Create a YAML file for the PV for the metrics volume
+    template:
+      src: templates/pv.yaml.j2
+      dest: /root/metrics-pv.yaml
+
+  - name: Check for metrics PV
+    command: oc get pv "{{ pv_name }}"
+    register: metrics_pv_out
+    ignore_errors: true
+
+  - name: Create PV from YAML for metrics EBS volume
+    command: oc create -f /root/metrics-pv.yaml
+    when: metrics_pv_out | failed
+
+  # if the artifacts are already deployed, don't process the deployer template
+  - name: Check for the deployed artifacts
+    command: oc get rc hawkular-metrics
+    register: metrics_artifacts_out
+    ignore_errors: true
+
+  - name: Instantiate the logging deployer via the template
+    shell: >
+      oc process metrics-deployer-template -n openshift
+      -v CASSANDRA_PV_SIZE=100Gi
+      -v HAWKULAR_METRICS_HOSTNAME=metrics."{{ r53_wildcard_zone }}" | oc create -f -
+    when: metrics_artifacts_out | failed
+
+  - name: Wait for the deployer to finish
+    shell: "oc get pod | awk '/metrics-deployer-[a-zA-Z0-9]*/{ print $3 }'"
+    register: deployer_output
+    until: deployer_output.stdout | search("Completed")
+    retries: 15
+    delay: 10
+
+  - name: Wait for the hawkular-cassandra-1 RC to exist
+    command: oc get rc hawkular-cassandra-1
+    register: rc_out
+    until: rc_out.stdout | search("hawkular-cassandra-1")
+    retries: 15
+    delay: 10
+
+  - name: Check if fsGroup is set in cassandra RC
+    shell: "oc get rc/hawkular-cassandra-1 -o yaml | grep fsGroup"
+    register: fsgroup_out
+    ignore_errors: true
+
+  - name: Determine openshift-infra project supplemental group
+    command: oc get project openshift-infra -o json
+    register: infra_project_out
+    when: fsgroup_out | failed
+
+  - name: Process the openshift-infra project json into a fact
+    set_fact:
+      infra_project_json: "{{ infra_project_out.stdout | from_json }}"
+    when: fsgroup_out | failed
+
+  - name: Patch the cassandra RC with the fsGroup
+    command: oc patch rc/hawkular-cassandra-1 -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ infra_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
+    when: fsgroup_out | failed
+    register: patched_out
+
+  - name: Find the cassandra pod
+    shell: oc get pod | awk '/hawkular-cassandra-1/{ print $1 }'
+    register: cassandra_pod_out
+    when: patched_out | success
+
+  - name: Delete the cassandra pod to get the fsGroup into it
+    command: "oc delete pod {{ cassandra_pod_out.stdout }}"
+    when: patched_out | success
 
 - name: Demonstration project configuration
   hosts: project_master

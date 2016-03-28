@@ -6,7 +6,8 @@ spec:
   capacity:
     storage: "{{ capacity }}Gi" 
   accessModes:
-    - "{{ access_mode }}"
+    - ReadWriteOnce
+    - ReadWriteMany
   awsElasticBlockStore: 
     fsType: "ext4" 
     volumeID: "{{ volid }}"
