@@ -578,7 +578,7 @@
     register: projects
 
   - name: Create projects for internal users
-    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --node-selector='region={{ item.project }}' --admin='{{ item.user }}'"
+    command: "oadm new-project {{ item.project }} --display-name='{{ item.project.title() }}' --admin='{{ item.user }}'"
     when: item.project not in projects.stdout and item.project != "empty"
     with_items: users
 
