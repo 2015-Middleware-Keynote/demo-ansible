@@ -180,6 +180,9 @@
     command: "oadm registry --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
     when: registry_out | failed
 
+  # figure out the registry deployment and wait for it to be running before continuing
+  - include: tasks/registry_wait.yml
+
   # we use a template to then lay down YAML to create the PV
   # this sets facts that are then consumed in the template
   - name: Set the facts for the registry PV template
@@ -223,35 +226,50 @@
     command: oc create -f /root/registry-pvc.yaml
     when: registry_pvc_out | failed
 
+  - name: Disable config change trigger on registry DC
+    command: oc patch dc/docker-registry -p '{"spec":{"triggers":[]}}'
+
   - name: Check if registry is still using empty directory
     command: oc volume dc/docker-registry
     register: registry_dc_out
-
+  
   - name: Attach volume to registry DC
     command: >
       oc volume dc/docker-registry --add --overwrite -t persistentVolumeClaim
       --claim-name=registry-pvc --name=registry-storage
-    #debug: msg="Should see this this time"
     when: "'empty directory' in registry_dc_out.stdout"
-
+    register: registry_volume_attached
+  
   - name: Check if fsGroup is set in registry DC
     shell: "oc get dc/docker-registry -o yaml | grep fsGroup"
     register: fsgroup_out
     ignore_errors: true
-
+  
   - name: Determine default project supplemental group
     command: oc get project default -o json
     register: default_project_out
     when: fsgroup_out | failed
-
+  
   - name: Process the default project json into a fact
     set_fact:
       default_project_json: "{{ default_project_out.stdout | from_json }}"
     when: fsgroup_out | failed
-
+  
   - name: Patch the docker registry DC with the fsGroup
     command: oc patch dc/docker-registry -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ default_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
     when: fsgroup_out | failed
+
+  - name: Deploy latest configuration of registry DC
+    command: oc deploy docker-registry --latest
+    when: fsgroup_out | failed or registry_volume_attached | success
+    register: deploy_latest
+
+  - name: Re-enable config trigger on docker-registry
+    command: oc patch dc/docker-registry -p '{"spec":{"triggers":[{"type":"ConfigChange"}]}}'
+    when: deploy_latest | success
+
+  # figure out the registry deployment and wait for it to be running before continuing
+  - include: tasks/registry_wait.yml
 
 - name: Installation and Configuration of Log Aggregation
   hosts: project_master
@@ -306,7 +324,7 @@
     when: logging_deployer_sa_out | failed
 
   - name: Wait for the logging-deployer secrets
-    shell: "oc get secrets | grep logging-deployer-token | wc -l"
+    shell: "oc get secrets | grep logging-deployer-token"
     register: deployer_token_out
     until: deployer_token_out | success
     retries: 15

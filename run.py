@@ -311,6 +311,7 @@ def launch_demo_env(num_nodes,
   if os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0:
     if not debug_playbook and not run_only_smoke_tests and not cleanup:
       click.echo('Your cluster provisioned successfully. The console is available at https://openshift.%s:%s' % (host_zone, console_port))
+      click.echo('You can SSH into a master using the same SSH key with: ssh -i /path/to/key.pem openshift@openshift-master.%s' % (host_zone))
 
     if cleanup:
       click.echo('Your cluster, %s, was de-provisioned and removed successfully.' % (cluster_id))
