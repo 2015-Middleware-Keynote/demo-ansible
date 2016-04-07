@@ -1,0 +1,18 @@
+# vim: set ft=ansible:
+- name: Make sure registry deployment version is non-zero
+  shell: "oc get --no-headers dc/docker-registry | awk '{print $3}'"
+  register: deployer_waiter_out
+  until: '"0" not in deployer_waiter_out.stdout'
+  retries: 15
+  delay: 10
+
+- name: Determine registry deployment version
+  shell: "oc get --no-headers dc/docker-registry | awk '{print $3}'"
+  register: registry_version_out
+
+- name: Wait for registry to be running
+  shell: oc get pod | grep -v deploy | awk '/docker-registry-{{ registry_version_out.stdout }}/{ print $3 }'
+  register: deployer_output
+  until: deployer_output.stdout | search("Running")
+  retries: 15
+  delay: 10
