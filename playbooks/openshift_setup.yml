@@ -37,11 +37,6 @@
       option: Zone
       value: "{{ ec2_placement }}"
 
-  - name: Update current package set
-    yum:
-      name: '*'
-      state: latest
-
   # ultimately we are setting the kube resolver as the first resolver
   # so we need to turn off DNS checking in SSHD otherwise connections
   # take a very long time
