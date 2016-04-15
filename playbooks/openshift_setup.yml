@@ -20,9 +20,10 @@
       value: "{{ hostvars[groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_master'].0]['ec2_ip_address'] }}"
       overwrite: yes
     delegate_to: localhost
-    
+
 # Register hosts via RHSM (as required) and configure repos
 - include: subscriptions_and_repos.yml
+- include: prerequisites.yml
 
 - name: Miscellaneous Host Configuration
   hosts: cluster_hosts

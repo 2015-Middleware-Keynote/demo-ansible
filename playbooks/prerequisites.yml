@@ -1,0 +1,8 @@
+# vim: set ft=ansible:
+---
+- name: Ensure 1.8.2 docker is installed
+  hosts: cluster_hosts
+  gather_facts: no
+  tasks:
+  - name: install docker
+    yum: name=docker-1.8.2 state=present

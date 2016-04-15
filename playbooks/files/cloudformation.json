@@ -279,6 +279,20 @@
         "SubnetId": { "Ref": "Subnet4" }
       }
     },
+    "DHCPOpts" : {
+      "Type" : "AWS::EC2::DHCPOptions",
+      "Properties" : {
+        "DomainName": "ec2.internal",
+        "DomainNameServers": [ "AmazonProvidedDNS" ]
+      }
+    },
+    "AssociateOpts" : {
+      "Type" : "AWS::EC2::VPCDHCPOptionsAssociation",
+      "Properties" : {
+          "VpcId": { "Ref" : "Vpc" },
+          "DhcpOptionsId": { "Ref" : "DHCPOpts" }
+      }
+    },
     "SshSG": {
       "Type": "AWS::EC2::SecurityGroup",
       "Properties": {
