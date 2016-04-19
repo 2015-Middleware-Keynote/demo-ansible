@@ -134,18 +134,19 @@ The options will show you the various defaults. Of special note is the Amazon
 EC2 AMI ID as well as the region. Here is a list of the AMIs and region IDs that
 should be used:
 
-  | AMI | Amazon Region |
-  | --- | --- |
-  | ami-2051294a | us-east-1 (default) |
-  | ami-d1315fb1 | us-west-1 |
-  | ami-775e4f16 | us-west-2 |
-  | ami-8b8c57f8 | eu-west-1 |
-  | ami-875042eb | eu-central-1 |
-  | ami-0dd8f963 | ap-northeast-1 |
-  | ami-44db152a | ap-northeast-2 |
-  | ami-3f03c55c | ap-southeast-1 |
-  | ami-e0c19f83 | ap-southeast-2 |
-  | ami-27b3094b | sa-east-1 |
+    | AMI           | Amazon Region  |
+    | ---           | ---            |
+    | ami-2051294a* | us-east-1*     |
+    | ami-d1315fb1  | us-west-1      |
+    | ami-775e4f16  | us-west-2      |
+    | ami-8b8c57f8  | eu-west-1      |
+    | ami-875042eb  | eu-central-1   |
+    | ami-0dd8f963  | ap-northeast-1 |
+    | ami-44db152a  | ap-northeast-2 |
+    | ami-3f03c55c  | ap-southeast-1 |
+    | ami-e0c19f83  | ap-southeast-2 |
+    | ami-27b3094b  | sa-east-1      |
+    * is default
 
 Most of the defaults are sensible for a small environment. To use them, simply
 execute `run.py` by itself:
