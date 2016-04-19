@@ -37,7 +37,7 @@ hexboard_sizes = ['tiny', 'xsmall', 'small', 'medium', 'large', 'xlarge']
 ### AWS/EC2 options
 @click.option('--region', default='us-east-1', help='ec2 region',
               show_default=True)
-@click.option('--ami', default='ami-10251c7a', help='ec2 ami',
+@click.option('--ami', default='ami-2051294a', help='ec2 ami',
               show_default=True)
 @click.option('--master-instance-type', default='m4.large', help='ec2 instance type',
               show_default=True)
