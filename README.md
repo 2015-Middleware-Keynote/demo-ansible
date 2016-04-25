@@ -24,7 +24,11 @@ The scripts can create workshop users, too.
 ## Prerequisites
 In order to use these scripts, you will need to set a few things up.
 
-- An AWS account with the following permissions:
+- An AWS IAM account with the following permissions:
+  - Policies can be defined for Users, Groups or Roles
+  - Navigate to: AWS Dashboard -> Identity & Access Management -> Select Users or Groups or Roles -> Permissions -> Inline Policies -> Create Policy -> Custom Policy
+    - Policy Name: openshift (your preference)
+    - Policy Document:
 ```
 {
     "Version": "2012-10-17",
@@ -34,7 +38,12 @@ In order to use these scripts, you will need to set a few things up.
             "Effect": "Allow",
             "Action": [
                 "cloudformation:*",
-                "iam:*"
+                "iam:*",
+                "route53:*",
+                "elasticloadbalancing:*",
+                "ec2:*",
+                "cloudwatch:*",
+                "autoscaling:*"
             ],
             "Resource": [
                 "*"
