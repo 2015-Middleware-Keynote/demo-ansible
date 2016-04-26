@@ -21,7 +21,6 @@
 #  Author:   Andy Grimm <agrimm@redhat.com>
 
 set -e
-set +x
 
 # This section reads the config file /etc/sysconfig/docker-storage-setup
 # Currently supported options:
@@ -633,6 +632,10 @@ EOF
 
   # Sometimes on slow storage it takes a while for partition device to
   # become available. Wait for device node to show up.
+  if ! udevadm settle;then
+    Fatal "udevadm settle after partition creation failed. Exiting."
+  fi
+
   if ! wait_for_dev ${dev}1; then
     Fatal "Partition device ${dev}1 is not available"
   fi
@@ -651,7 +654,6 @@ create_disk_partitions() {
     # signatures on disk or signatures have been overridden. Don't care
     # about any signatures found in the middle of disk after creating
     # partition and use force option.
-    pvscan --cache
     pvcreate -f ${dev}1
     PVS="$PVS ${dev}1"
   done
