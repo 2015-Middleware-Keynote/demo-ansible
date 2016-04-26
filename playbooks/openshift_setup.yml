@@ -37,21 +37,29 @@
       option: Zone
       value: "{{ ec2_placement }}"
 
-  # ultimately we are setting the kube resolver as the first resolver
-  # so we need to turn off DNS checking in SSHD otherwise connections
-  # take a very long time
-  - name: Turn off DNS checking in SSHD
-    lineinfile:
-      dest: /etc/ssh/sshd_config
-      regexp: ".*UseDNS.*"
-      line: "UseDNS no"
-    register: sshd_config_result
+  - name: Install docker 1.8.2
+    yum: 
+      name: docker-1.8.2 
+      state: present
 
-  - name: Restart SSHD
-    service: 
-      name: sshd
-      state: restarted
-    when: sshd_config_result | changed
+  - name: Replace docker-storage-setup
+    copy:
+      src: files/docker-storage-setup.sh
+      dest: /bin/docker-storage-setup
+  
+  - name: Replace libdss.sh
+    copy:
+      src: files/libdss.sh
+      dest: /usr/lib/docker-storage-setup/
+      mode: 0755
+  
+  # this file is placed during the cloudformation instantiation
+  - name: Add delay to /etc/sysconfig/docker-storage-setup
+    lineinfile:
+      dest: /etc/sysconfig/docker-storage-setup
+      insertafter: EOF
+      line: DEVICE_WAIT_TIMEOUT=60
+      regexp: '^DEVICE_WAIT_TIMEOUT=.*'
 
 # Configure the instances
 - include: ../../openshift-ansible/playbooks/byo/openshift-cluster/config.yml

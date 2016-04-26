@@ -73,6 +73,7 @@ In order to use these scripts, you will need to set a few things up.
 - [Python](https://www.python.org) version 2.7.x (3.x untested and may not work)
 - [Python Click](https://github.com/mitsuhiko/click) version 4.0 or greater
 - [Python Boto](http://docs.pythonboto.org) version 2.38.0 or greater
+- [pyOpenSSL](https://github.com/pyca/pyopenssl) version 0.15.1 or greater
 - [Ansible](https://github.com/ansible/ansible) version 1.9.4
 
 Python and the Python dependencies may be installed via your OS' package manager
@@ -88,7 +89,7 @@ them, and very specific versions of each.
 - `demo-ansible`
     - [2015-Middleware-Keynote/demo-ansible](https://github.com/2015-Middleware-Keynote/demo-ansible)
     - You will want to use `master` until we implement tags on this repository
-    - You will want to check out tag `demo-ansible-2.0.0`
+    - You will want to check out tag `demo-ansible-2.1.0`
 - `openshift-ansible`
     - [openshift/openshift-ansible](https://github.com/openshift/openshift-ansible)
     - You will want to check out tag `openshift-ansible-3.0.47-6`
@@ -106,7 +107,7 @@ In this case, you could do something like the following:
 cd /home/user/ansible-scripts
 git clone https://github.com/2015-Middleware-Keynote/demo-ansible.git
 cd demo-ansible
-git checkout demo-ansible-2.0.0
+git checkout demo-ansible-2.1.0
 cd ..
 git clone https://github.com/openshift/openshift-ansible.git
 cd openshift-ansible
@@ -123,10 +124,14 @@ export AWS_SECRET_ACCESS_KEY=bar
 ```
 
 ### Add the SSH Key to the SSH Agent
-You will need to add the private key to your SSH agent: 
+If your operating system has an SSH agent and you are not using your default
+configured SSH key, you will need to add the private key to your SSH agent: 
 ```
 ssh-add <path to key file>
 ```
+
+Note that if you use an SSH config that specifies what keys to use for what
+hosts this step may not be necessary.
 
 ### `run.py`
 There is a Python script, run.py, that takes options and calls Ansible to run
@@ -181,7 +186,12 @@ something like the following:
 ```
 Your cluster provisioned successfully. The console is available at https://openshift.<clustername>.<route53dnszone>:443
 You can SSH into a master using the same SSH key with: ssh -i /path/to/key.pem openshift@openshift-master.<clustername>.<route53dnszone>
+**After logging into the OpenShift console** you will need to visit https://metrics.<wildcardname>.<route53dnszone> and accept the Hawkular SSL certificate
+You can access Kibana at https://kibana.<wildcardname>.<route53dnszone>
 ```
+
+Be sure to visit the metrics URL to accept the SSL certificate **AFTER** logging
+into the OpenShift console.
 
 ## Cleanup
 `run.py` has a `--cleanup` option that can be used to delete all of the

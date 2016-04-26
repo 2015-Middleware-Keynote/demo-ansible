@@ -41,7 +41,7 @@ hexboard_sizes = ['tiny', 'xsmall', 'small', 'medium', 'large', 'xlarge']
               show_default=True)
 @click.option('--master-instance-type', default='m4.large', help='ec2 instance type',
               show_default=True)
-@click.option('--infra-instance-type', default='m4.large', help='ec2 instance type',
+@click.option('--infra-instance-type', default='m4.2xlarge', help='ec2 instance type',
               show_default=True)
 @click.option('--node-instance-type', default='m4.large', help='ec2 instance type',
               show_default=True)
@@ -312,6 +312,8 @@ def launch_demo_env(num_nodes,
     if not debug_playbook and not run_only_smoke_tests and not cleanup:
       click.echo('Your cluster provisioned successfully. The console is available at https://openshift.%s:%s' % (host_zone, console_port))
       click.echo('You can SSH into a master using the same SSH key with: ssh -i /path/to/key.pem openshift@openshift-master.%s' % (host_zone))
+      click.echo('**After logging into the OpenShift console** you will need to visit https://metrics.%s and accept the Hawkular SSL certificate' % ( wildcard_zone ))
+      click.echo('You can access Kibana at https://kibana.%s' % ( wildcard_zone ))
 
     if cleanup:
       click.echo('Your cluster, %s, was de-provisioned and removed successfully.' % (cluster_id))
