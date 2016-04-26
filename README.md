@@ -74,7 +74,9 @@ In order to use these scripts, you will need to set a few things up.
 - [Python Click](https://github.com/mitsuhiko/click) version 4.0 or greater
 - [Python Boto](http://docs.pythonboto.org) version 2.38.0 or greater
 - [pyOpenSSL](https://github.com/pyca/pyopenssl) version 0.15.1 or greater
-- [Ansible](https://github.com/ansible/ansible) version 1.9.4
+- [Ansible](https://github.com/ansible/ansible) **version 1.9.4**
+
+Ansible [1.9.4 is available for RHEL7/CentOS7/Fedora/RPM via EPEL](https://dl.fedoraproject.org/pub/epel/7/x86_64/a/ansible1.9-1.9.4-2.el7.noarch.rpm)
 
 Python and the Python dependencies may be installed via your OS' package manager
 (eg: python-click on Fedora/CentOS/RHEL) or via
@@ -89,7 +91,7 @@ them, and very specific versions of each.
 - `demo-ansible`
     - [2015-Middleware-Keynote/demo-ansible](https://github.com/2015-Middleware-Keynote/demo-ansible)
     - You will want to use `master` until we implement tags on this repository
-    - You will want to check out tag `demo-ansible-2.1.1`
+    - You will want to check out tag `demo-ansible-2.1.2`
 - `openshift-ansible`
     - [openshift/openshift-ansible](https://github.com/openshift/openshift-ansible)
     - You will want to check out tag `openshift-ansible-3.0.47-6`
@@ -107,10 +109,11 @@ In this case, you could do something like the following:
 cd /home/user/ansible-scripts
 git clone https://github.com/2015-Middleware-Keynote/demo-ansible.git
 cd demo-ansible
-git checkout demo-ansible-2.1.0
+git checkout demo-ansible-2.1.2
 cd ..
 git clone https://github.com/openshift/openshift-ansible.git
 cd openshift-ansible
+git fetch origin :remotes/origin/openshift-ansible-3.0.47-6
 git checkout openshift-ansible-3.0.47-6
 ```
 
