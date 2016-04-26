@@ -89,7 +89,7 @@ them, and very specific versions of each.
 - `demo-ansible`
     - [2015-Middleware-Keynote/demo-ansible](https://github.com/2015-Middleware-Keynote/demo-ansible)
     - You will want to use `master` until we implement tags on this repository
-    - You will want to check out tag `demo-ansible-2.1.0`
+    - You will want to check out tag `demo-ansible-2.1.1`
 - `openshift-ansible`
     - [openshift/openshift-ansible](https://github.com/openshift/openshift-ansible)
     - You will want to check out tag `openshift-ansible-3.0.47-6`
