@@ -10,24 +10,10 @@
   when: item not in projects.stdout
   with_sequence: start=0 end={{ num_smoke_test_users }} format=user%02d
 
-- name: Create "app" in smoke projects
-  command: "oc new-app openshift/php~https://github.com/gshipley/smoke.git -n {{ item }}-smoke"
-  when: item not in projects.stdout
+- name: Execute build script for each project
+  script: files/smoke_project.sh {{ item }}
   with_sequence: start=0 end={{ num_smoke_test_users }} format=user%02d
-
-- name: Expose smoke project service
-  command: "oc expose service smoke -n {{ item }}-smoke"
-  when: item not in projects.stdout
-  with_sequence: start=0 end={{ num_smoke_test_users }} format=user%02d
-
-- name: Wait to scale smoke app for first deployment
-  shell: "oc get rc --all-namespaces | grep smoke"
-  register: build_output
-  until: (build_output.stdout.split('\n') | length) == ((num_smoke_test_users | int) + 1)
-  retries: 15
-  delay: 30
 
 - name: Scale smoke app
   command: "oc scale dc/smoke --replicas=2 -n {{ item }}-smoke"
-  when: item not in projects.stdout
   with_sequence: start=0 end={{ num_smoke_test_users }} format=user%02d
