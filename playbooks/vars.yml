@@ -17,7 +17,7 @@ preload_images:
 - openshift3/ose-docker-builder:latest
 - openshift3/ose-deployer:latest
 - rhscl/mongodb-26-rhel7:latest
-- jboss-eap-6/eap64-openshift:latest
+- jboss-eap-6/eap64-openshift:1.1
 - kubernetes/guestbook:latest
 
 users:
