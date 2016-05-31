@@ -54,8 +54,8 @@ hexboard_sizes = ['tiny', 'xsmall', 'small', 'medium', 'large', 'xlarge']
               show_default=True)
 
 ### Subscription and Software options
-@click.option('--package-version', help='OpenShift Package version (eg: 3.2.0.20)',
-              show_default=True, default='3.2.0.20')
+@click.option('--package-version', help='OpenShift Package version (eg: 3.2.0.44)',
+              show_default=True, default='3.2.0.44')
 @click.option('--rhsm-user', help='Red Hat Subscription Management User')
 @click.option('--rhsm-pass', help='Red Hat Subscription Management Password',
                 hide_input=True,)

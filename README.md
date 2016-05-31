@@ -93,8 +93,8 @@ them, and very specific versions of each.
     - You will want to use `master` until we implement tags on this repository
     - You will want to check out tag `demo-ansible-2.2.0`
 - `openshift-ansible`
-    - [openshift/openshift-ansible](https://github.com/openshift/openshift-ansible)
-    - You will want to check out tag `openshift-ansible-3.0.88-1`
+    - [thoraxe/openshift-ansible](https://github.com/thoraxe/openshift-ansible)
+    - You will want to check out tag `openshift-ansible-3.0.94-1-hotfix`
 
 The folders for these repositories are expected to live in the same
 subdirectory. An example tree structure is below:
