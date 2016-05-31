@@ -404,16 +404,14 @@
   - name: Determine image stream version tags
     script: files/image_stream_version_check.sh logging-support-template logging
     register: is_version_out
-    when: prerelease | bool
 
-  - name: "Pull the image stream tags (prerelease)" 
+  - name: "Pull the image stream tags" 
     command: oc import-image {{ item }}:{{ is_version_out.stdout }} --insecure=true
     with_items:
       - "logging-auth-proxy"
       - "logging-elasticsearch"
       - "logging-fluentd"
       - "logging-kibana"
-    when: prerelease | bool
     register: image_tag_pull_out
     retries: 2
     until: image_tag_pull_out | success
