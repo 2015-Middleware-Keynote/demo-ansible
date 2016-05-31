@@ -455,6 +455,16 @@
         "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
       }
     },
+    "NodeIngressNodeKubelet": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "10250",
+        "ToPort": "10250",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
     "NodeIngressNodeVXLAN": {
       "Type": "AWS::EC2::SecurityGroupIngress",
       "Properties":{
@@ -503,6 +513,46 @@
         "FromPort": "53",
         "ToPort": "53",
         "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressNodesSkyDNSUDP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "udp",
+        "FromPort": "8053",
+        "ToPort": "8053",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressNodesSkyDNSTCP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "8053",
+        "ToPort": "8053",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "NodeSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressMasterssSkyDNSUDP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "udp",
+        "FromPort": "8053",
+        "ToPort": "8053",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
+      }
+    },
+    "MasterIngressMastersSkyDNSTCP": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties":{
+        "GroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] },
+        "IpProtocol": "tcp",
+        "FromPort": "8053",
+        "ToPort": "8053",
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "MasterSG", "GroupId" ] }
       }
     },
     "MasterIngressNodesAPITCP": {

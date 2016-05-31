@@ -37,21 +37,24 @@
       option: Zone
       value: "{{ ec2_placement }}"
 
-  - name: Install docker 1.8.2
-    yum: 
-      name: docker-1.8.2 
-      state: present
-
-  - name: Replace docker-storage-setup
-    copy:
-      src: files/docker-storage-setup.sh
-      dest: /bin/docker-storage-setup
-  
-  - name: Replace libdss.sh
-    copy:
-      src: files/libdss.sh
-      dest: /usr/lib/docker-storage-setup/
-      mode: 0755
+      #  - name: Install docker 1.8.2
+      #    yum: 
+      #      name: docker-1.8.2 
+      #      state: present
+      #    when: not prerelease | bool
+      #
+      #  - name: Replace docker-storage-setup
+      #    copy:
+      #      src: files/docker-storage-setup.sh
+      #      dest: /bin/docker-storage-setup
+      #    when: not prerelease | bool
+      #  
+      #  - name: Replace libdss.sh
+      #    copy:
+      #      src: files/libdss.sh
+      #      dest: /usr/lib/docker-storage-setup/
+      #      mode: 0755
+      #    when: not prerelease | bool
   
   # this file is placed during the cloudformation instantiation
   - name: Add delay to /etc/sysconfig/docker-storage-setup
@@ -60,6 +63,16 @@
       insertafter: EOF
       line: DEVICE_WAIT_TIMEOUT=60
       regexp: '^DEVICE_WAIT_TIMEOUT=.*'
+    when: not prerelease | bool
+
+  # for metrics time synchronization
+  - name: Install ntpd
+    yum:
+      name: ntp
+      state: present
+
+  - name: Start and enable ntpd
+    service: name=ntpd enabled=yes state=started
 
 # Configure the instances
 - include: ../../openshift-ansible/playbooks/byo/openshift-cluster/config.yml
@@ -92,7 +105,7 @@
     openshift_master_identity_providers: "{{ identity_providers }}"
     openshift_master_api_port: "{{ console_port }}"
     openshift_master_console_port: "{{ console_port }}"
-    openshift_package_version: 3.1.1.6
+    openshift_pkg_version: "{{ package_version }}"
     openshift_master_logging_public_url: "https://kibana.{{ r53_wildcard_zone }}"
     openshift_master_metrics_public_url: "https://metrics.{{ r53_wildcard_zone }}/hawkular/metrics"
     osm_cluster_network_cidr: 10.0.0.0/8
@@ -104,6 +117,7 @@
     openshift_master_cluster_hostname: openshift.internal.{{ r53_host_zone }}
     openshift_master_cluster_public_hostname: openshift.{{ r53_host_zone }}
     os_firewall_enabled: False
+    oreg_url: "{{ registry_url }}"
 
 # Router, Registry, internal users and projects, priming
 - include: post_setup.yml

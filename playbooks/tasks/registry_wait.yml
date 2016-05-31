@@ -1,14 +1,13 @@
 # vim: set ft=ansible:
+# using base64 because of a bug in processing golang braced templates with ansible
+# echo "oc get dc/docker-registry -o go-template='{{.status.latestVersion}}'" | base64
+# b2MgZ2V0IGRjL2RvY2tlci1yZWdpc3RyeSAtbyBnby10ZW1wbGF0ZT0ne3suc3RhdHVzLmxhdGVzdFZlcnNpb259fScK
 - name: Make sure registry deployment version is non-zero
-  shell: "oc get --no-headers dc/docker-registry | awk '{print $3}'"
-  register: deployer_waiter_out
-  until: '"0" not in deployer_waiter_out.stdout'
+  shell: echo "b2MgZ2V0IGRjL2RvY2tlci1yZWdpc3RyeSAtbyBnby10ZW1wbGF0ZT0ne3suc3RhdHVzLmxhdGVzdFZlcnNpb259fScK" | base64 -d | bash
+  register: registry_version_out
+  until: '"0" not in registry_version_out.stdout'
   retries: 15
   delay: 10
-
-- name: Determine registry deployment version
-  shell: "oc get --no-headers dc/docker-registry | awk '{print $3}'"
-  register: registry_version_out
 
 - name: Wait for registry to be running
   shell: oc get pod | grep -v deploy | awk '/docker-registry-{{ registry_version_out.stdout }}/{ print $3 }'

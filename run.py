@@ -19,9 +19,9 @@ hexboard_sizes = ['tiny', 'xsmall', 'small', 'medium', 'large', 'xlarge']
 @click.option('--hexboard-size', type=click.Choice(hexboard_sizes),
               help='Override Hexboard size calculation (tiny=32, xsmall=64, small=108, medium=266, large=512, xlarge=1026)',
               show_default=True)
-@click.option('--console-port', default='8443', type=click.IntRange(1,65535), help='OpenShift web console port',
+@click.option('--console-port', default='443', type=click.IntRange(1,65535), help='OpenShift web console port',
               show_default=True)
-@click.option('--api-port', default='8443', type=click.IntRange(1,65535), help='OpenShift API port',
+@click.option('--api-port', default='443', type=click.IntRange(1,65535), help='OpenShift API port',
               show_default=True)
 @click.option('--deployment-type', default='openshift-enterprise', help='openshift deployment type',
               show_default=True)
@@ -54,6 +54,8 @@ hexboard_sizes = ['tiny', 'xsmall', 'small', 'medium', 'large', 'xlarge']
               show_default=True)
 
 ### Subscription and Software options
+@click.option('--package-version', help='OpenShift Package version (eg: 3.2.0.44)',
+              show_default=True, default='3.2.0.44')
 @click.option('--rhsm-user', help='Red Hat Subscription Management User')
 @click.option('--rhsm-pass', help='Red Hat Subscription Management Password',
                 hide_input=True,)
@@ -61,10 +63,13 @@ hexboard_sizes = ['tiny', 'xsmall', 'small', 'medium', 'large', 'xlarge']
               help='Skip subscription management steps')
 @click.option('--use-certificate-repos', is_flag=True,
               help='Uses certificate-based yum repositories for the AOS content. Requires providing paths to local certificate key and pem files.')
-@click.option('--certificate-file', help='Certificate file for the yum repository',
-              show_default=True)
-@click.option('--certificate-key', help='Certificate key for the yum repository',
-              show_default=True)
+@click.option('--aos-repo', help='An alternate URL to locate software')
+@click.option('--prerelease', help='If using prerelease software, set to true',
+              show_default=True, default=False, is_flag=True)
+@click.option('--kerberos-user', help='Kerberos userid (eg: jsmith) for use with --prerelease')
+@click.option('--kerberos-token', help='Token to go with the kerberos user for use with --prerelease')
+@click.option('--registry-url', help='A URL for an alternate Docker registry for dockerized components of OpenShift',
+              show_default=True, default='registry.access.redhat.com/openshift3/ose-${component}:${version}')
 
 ### Miscellaneous options
 @click.option('--no-confirm', is_flag=True,
@@ -92,12 +97,16 @@ def launch_demo_env(num_nodes,
                     deployment_type=None,
                     console_port=443,
                     api_port=443,
+                    package_version=None,
                     rhsm_user=None,
                     rhsm_pass=None,
                     skip_subscription_management=False,
-                    certificate_file=None,
-                    certificate_key=None,
                     use_certificate_repos=False,
+                    aos_repo=None,
+                    prerelease=False,
+                    kerberos_user=None,
+                    kerberos_token=None,
+                    registry_url=None,
                     run_smoke_tests=False,
                     num_smoke_test_users=None,
                     run_only_smoke_tests=False,
@@ -138,12 +147,15 @@ def launch_demo_env(num_nodes,
     if rhsm_pass is None:
       rhsm_pass = click.prompt("RHSM password?", hide_input=True, confirmation_prompt=True)
 
-  # Prompt for certificate files if using certicicate repos
-  if use_certificate_repos and not cleanup:
-    if certificate_file is None:
-      certificate_file = click.prompt("Certificate file absolute location? (eg: /home/user/folder/file.pem)")
-    if certificate_key is None:
-      certificate_key = click.prompt("Certificate key absolute location? (eg: /home/user/folder/file.pem)")
+  # User must supply a repo URL if using certificate repos
+  if use_certificate_repos and aos_repo is None:
+    click.echo('Must provide a repo URL via --aos-repo when using certificate repos')
+    sys.exit(1)
+
+  # User must supply kerberos user and token with --prerelease
+  if prerelease and ( kerberos_user is None or kerberos_token is None ):
+    click.echo('Must provider --kerberos-user / --kerberos-token with --prerelease')
+    sys.exit(1)
 
   # Override hexboard size calculation
   if hexboard_size is None:
@@ -179,6 +191,18 @@ def launch_demo_env(num_nodes,
   click.echo('\tconsole port: %s' % console_port)
   click.echo('\tapi port: %s' % api_port)
   click.echo('\tdeployment_type: %s' % deployment_type)
+  click.echo('\tpackage_version: %s' % package_version)
+
+  if use_certificate_repos:
+    click.echo('\taos_repo: %s' % aos_repo)
+
+  click.echo('\tprerelease: %s' % prerelease)
+
+  if prerelease:
+    click.echo('\tkerberos user: %s' % kerberos_user)
+    click.echo('\tkerberos token: %s' % kerberos_token)
+
+  click.echo('\tregistry_url: %s' % registry_url)
   click.echo('\thexboard_size: %s' % hexboard_size)
   click.echo('\tr53_zone: %s' % r53_zone)
   click.echo('\tapp_dns_prefix: %s' % app_dns_prefix)
@@ -189,10 +213,6 @@ def launch_demo_env(num_nodes,
   if not skip_subscription_management:
     click.echo('\trhsm_user: %s' % rhsm_user)
     click.echo('\trhsm_pass: *******')
-
-  if use_certificate_repos:
-    click.echo('\tcertificate_file: %s' % certificate_file)
-    click.echo('\tcertificate_key: %s' % certificate_key)
 
   if run_smoke_tests or run_only_smoke_tests:
     click.echo('\tnum smoke users: %s' % num_smoke_test_users)
@@ -259,12 +279,16 @@ def launch_demo_env(num_nodes,
     num_masters=%s \
     hexboard_size=%s \
     deployment_type=%s \
+    package_version=-%s \
     rhsm_user=%s \
     rhsm_pass=%s \
     skip_subscription_management=%s \
     use_certificate_repos=%s \
-    certificate_file=%s \
-    certificate_key=%s \
+    aos_repo=%s \
+    prerelease=%s \
+    kerberos_user=%s \
+    kerberos_token=%s \
+    registry_url=%s \
     run_smoke_tests=%s \
     run_only_smoke_tests=%s \
     num_smoke_test_users=%s \
@@ -285,18 +309,21 @@ def launch_demo_env(num_nodes,
                     num_masters,
                     hexboard_size,
                     deployment_type,
+                    package_version,
                     rhsm_user,
                     rhsm_pass,
                     skip_subscription_management,
                     use_certificate_repos,
-                    certificate_file,
-                    certificate_key,
+                    aos_repo,
+                    prerelease,
+                    kerberos_user,
+                    kerberos_token,
+                    registry_url,
                     run_smoke_tests,
                     run_only_smoke_tests,
                     num_smoke_test_users,
                     default_password,
                     playbook)
-
 
     if verbose > 0:
       command += " -" + "".join(['v']*verbose)

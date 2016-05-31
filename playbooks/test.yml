@@ -1,0 +1,178 @@
+# vim: set ft=ansible:
+---
+- include: cloudformation_setup.yml
+
+- include: group_setup.yml
+
+- name: Installation and Configuration of Metrics
+  hosts: project_master
+  gather_facts: no
+  vars_files:
+  - vars.yml
+  vars:
+    default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
+    image_prefix: "{{ registry_url | regex_replace('^(.*\\/).*$', '\\\\1') }}"
+    registry_fqdn: "{{ registry_url | regex_replace('(.*?)\\/.*$', '\\\\1') }}"
+  tasks:
+
+  # make sure that we are using the default user (system:admin) and the default project
+  - name: Change the oc context
+    command: "oc config use-context {{ default_context }}"
+
+  - name: Change to the openshift-infra project
+    command: "oc project openshift-infra"
+
+  # for prerelease / QE stuff
+  - name: Delete Docker auth secret if it exists
+    command: oc delete secret prerelease
+    ignore_errors: true
+    when: prerelease | bool
+
+  - name: Create the Docker auth secret
+    command: oc secrets new-dockercfg prerelease --docker-server={{ registry_fqdn }} --docker-username={{ kerberos_user }}@redhat.com --docker-password={{ kerberos_token }} --docker-email={{ kerberos_user }}@redhat.com
+    when: prerelease | bool
+
+  - name: Force metrics components into env=infra
+    command: oc patch namespace/openshift-infra -p '{"metadata":{"annotations":{"openshift.io/node-selector":"env=infra"}}}'
+
+  - name: Check for metrics-deployer service account
+    command: oc get sa metrics-deployer
+    register: metrics_deployer_sa_out
+    ignore_errors: true
+
+  - name: Create the metrics-deployer service account
+    shell: 'echo ''{"apiVersion":"v1","kind":"ServiceAccount","metadata":{"name":"metrics-deployer"},"secrets":[{"name":"metrics-deployer"}]}'' | oc create -f -'
+    when: metrics_deployer_sa_out | failed
+
+  - name: Wait for the metrics-deployer secrets
+    shell: "oc get secrets | grep metrics-deployer-token"
+    register: metrics_token_out
+    until: metrics_token_out | success
+    retries: 15
+    delay: 10
+
+  - name: Grant the edit role to the metrics-deployer service account
+    command: oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer
+
+  - name: Grant the cluster-reader role to the heapster service account
+    command: oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster
+
+  - name: Check for metrics-deployer secret
+    command: "oc get secret metrics-deployer"
+    register: metrics_deployer_secret_out
+    ignore_errors: true
+
+  - name: Create the null metrics-deployer secret
+    command: oc secrets new metrics-deployer nothing=/dev/null
+    when: metrics_deployer_secret_out | failed
+
+  # we use a template to then lay down YAML to create the PV
+  # this sets facts that are then consumed in the template
+  - name: Set the facts for the metrics PV template
+    set_fact:
+      pv_name: "metrics-pv"
+      capacity: "100"
+      volid: "{{ hostvars['localhost']['metrics_volume'] }}"
+
+  - name: Create a YAML file for the PV for the metrics volume
+    template:
+      src: templates/pv.yaml.j2
+      dest: /root/metrics-pv.yaml
+
+  - name: Check for metrics PV
+    command: oc get pv "{{ pv_name }}"
+    register: metrics_pv_out
+    ignore_errors: true
+
+  - name: Create PV from YAML for metrics EBS volume
+    command: oc create -f /root/metrics-pv.yaml
+    when: metrics_pv_out | failed
+
+  # if the artifacts are already deployed, don't process the deployer template
+  - name: Check for the deployed artifacts
+    command: oc get rc hawkular-metrics
+    register: metrics_artifacts_out
+    ignore_errors: true
+
+  - name: Instantiate the logging deployer via the template
+    shell: >
+      oc process metrics-deployer-template -n openshift
+      -v IMAGE_PREFIX="{{ image_prefix }}"
+      -v CASSANDRA_PV_SIZE=100Gi
+      -v HAWKULAR_METRICS_HOSTNAME=metrics."{{ r53_wildcard_zone }}" | oc create -f -
+    when: metrics_artifacts_out | failed
+
+  - name: Wait for the deployer to finish
+    script: files/check_pod_complete.sh 'metrics-deployer-[a-zA-Z0-9]*'
+    register: check_out
+    until: check_out | success
+    retries: 15
+    delay: 10
+  
+  - name: Wait for the hawkular-cassandra-1 RC to exist
+    command: oc get rc hawkular-cassandra-1
+    register: rc_out
+    until: rc_out.stdout | search("hawkular-cassandra-1")
+    retries: 15
+    delay: 10
+  
+  - name: Check if fsGroup is set in cassandra RC
+    shell: "oc get rc/hawkular-cassandra-1 -o yaml | grep fsGroup"
+    register: fsgroup_out
+    ignore_errors: true
+  
+  - name: Determine openshift-infra project supplemental group
+    command: oc get project openshift-infra -o json
+    register: infra_project_out
+    when: fsgroup_out | failed
+  
+  - name: Process the openshift-infra project json into a fact
+    set_fact:
+      infra_project_json: "{{ infra_project_out.stdout | from_json }}"
+    when: fsgroup_out | failed
+  
+  - name: Patch the cassandra RC with the fsGroup
+    command: oc patch rc/hawkular-cassandra-1 -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ infra_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
+    when: fsgroup_out | failed
+    register: patched_out
+  
+  - name: Find the cassandra pod
+    shell: oc get pod | awk '/hawkular-cassandra-1/{ print $1 }'
+    register: cassandra_pod_out
+    when: patched_out | success
+  
+  - name: Delete the cassandra pod to get the fsGroup into it
+    command: "oc delete pod {{ cassandra_pod_out.stdout }}"
+    when: patched_out | success
+
+  - name: Check if the stats resolution has been set
+    shell: oc get rc/heapster -o json | grep resolution
+    register: resolution_out
+
+  - name: Patch the heapster RC
+    command: oc patch rc/heapster -p '{"spec":{"template":{"spec":{"containers":[{"name":"heapster","image":"registry.access.redhat.com/openshift3/metrics-heapster:3.2.0","command":["heapster-wrapper.sh","--wrapper.username_file=/hawkular-account/hawkular-metrics.username","--wrapper.password_file=/hawkular-account/hawkular-metrics.password","--wrapper.allowed_users_file=/secrets/heapster.allowed-users","--wrapper.endpoint_check=https://hawkular-metrics:443/hawkular/metrics/status","--source=kubernetes:https://kubernetes.default.svc:443?useServiceAccount=true&kubeletHttps=true&kubeletPort=10250","--sink=hawkular:https://hawkular-metrics:443?tenant=_system&labelToTenant=pod_namespace&labelNodeId=nodename&caCert=/hawkular-cert/hawkular-metrics-ca.certificate&user=%username%&pass=%password%&filter=label(container_name:^/system.slice.*|^/user.slice)","--tls_cert=/secrets/heapster.cert","--tls_key=/secrets/heapster.key","--tls_client_ca=/secrets/heapster.client-ca","--allowed_users=%allowed_users%","--stats_resolution=15s"],"ports":[{"name":"http-endpoint","containerPort":8082,"protocol":"TCP"}],"resources":{},"volumeMounts":[{"name":"heapster-secrets","mountPath":"/secrets"},{"name":"hawkular-metrics-certificate","mountPath":"/hawkular-cert"},{"name":"hawkular-metrics-account","mountPath":"/hawkular-account"}],"readinessProbe":{"exec":{"command":["/opt/heapster-readiness.sh"]},"timeoutSeconds":1,"periodSeconds":10,"successThreshold":1,"failureThreshold":3},"terminationMessagePath":"/dev/termination-log","imagePullPolicy":"IfNotPresent"}]}}}}'
+    when: resolution_out | failed
+
+  - name: Find the heapster pod
+    shell: oc get pod | awk '/heapster/{ print $1 }'
+    register: heapster_pod_out
+
+  - name: Kill the heapster pod
+    shell: oc delete pod {{ heapster_pod_out.stdout }}
+
+  - name: Wait for old heapster pod to be gone
+    shell: oc get pod | grep {{ heapster_pod_out.stdout }}
+    register: metrics_pods_out
+    until: metrics_pods_out | failed
+    retries: 15
+    delay: 10
+    ignore_errors: true
+
+  - name: Wait for new heapster pod to be running
+    shell: oc get pod | grep heapster | grep -i unning
+    register: heapster_running_out
+    until: heapster_running_out | success
+    retries: 15
+    delay: 10
+    ignore_errors: true
+

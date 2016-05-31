@@ -12,6 +12,7 @@
   - name: pre-pull images
     command: "docker pull {{ item }}"
     with_items: preload_images
+    when: not prerelease | bool
 
 - name: User creation
   hosts: masters
@@ -81,17 +82,18 @@
     when: router_out | failed
 
   - name: Install router
-    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/origin/master/openshift-router.kubeconfig --service-account=router --images='{{ router_image_url }}'"
+    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/origin/master/openshift-router.kubeconfig --service-account=router --images='{{ registry_url }}'"
     when: router_out | failed
-
-  # we should probably do some kind of actual check for router deployment
-  - name: Wait for router to deploy
-    pause:
-      seconds: 10
 
   - name: Scale router
     command: "oc scale --replicas={{ num_infra_nodes }} dc router"
-    when: router_out | failed
+
+  - name: Wait for scaled router
+    script: files/router_scale.sh
+    register: router_scale_out
+    until: router_scale_out | success
+    retries: 10
+    delay: 15
 
 # Using EBS storage with OpenShift requires that the systems
 # know the EC2 credentials in order to manipulate the EBS volumes.
@@ -177,11 +179,8 @@
     ignore_errors: true
 
   - name: Install registry
-    command: "oadm registry --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='{{ registry_image_url }}'"
+    command: "oadm registry --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='{{ registry_url }}'"
     when: registry_out | failed
-
-  # figure out the registry deployment and wait for it to be running before continuing
-  - include: tasks/registry_wait.yml
 
   # we use a template to then lay down YAML to create the PV
   # this sets facts that are then consumed in the template
@@ -190,49 +189,49 @@
       pv_name: "registry-pv"
       capacity: "50"
       volid: "{{ hostvars['localhost']['registry_volume'] }}"
-
+  
   - name: Create a YAML file for the PV for the Registry volume
     template:
       src: templates/pv.yaml.j2
       dest: /root/registry-pv.yaml
-
+  
   - name: Check for registry PV
     command: oc get pv "{{ pv_name }}"
     register: registry_pv_out
     ignore_errors: true
-
+  
   # as before
   - name: Set the facts for the registry PVC template
     set_fact:
       claim_name: "registry-pvc"
       capacity: "50"
       access_mode: "ReadWriteMany"
-
+  
   - name: Check for registry PVC
     command: oc get pvc "{{ claim_name }}"
     register: registry_pvc_out
     ignore_errors: true
-
+  
   - name: Create a YAML file for the PVC for the Registry volume
     template:
       src: templates/pvc.yaml.j2
       dest: /root/registry-pvc.yaml
-
+  
   - name: Create PV from YAML for registry EBS volume
     command: oc create -f /root/registry-pv.yaml
     when: registry_pv_out | failed
-
+  
   - name: Create PVC from YAML for registry EBS volume
     command: oc create -f /root/registry-pvc.yaml
     when: registry_pvc_out | failed
-
+  
   - name: Disable config change trigger on registry DC
     command: oc patch dc/docker-registry -p '{"spec":{"triggers":[]}}'
-
+  
   - name: Check if registry is still using empty directory
     command: oc volume dc/docker-registry
     register: registry_dc_out
-  
+      
   - name: Attach volume to registry DC
     command: >
       oc volume dc/docker-registry --add --overwrite -t persistentVolumeClaim
@@ -258,18 +257,26 @@
   - name: Patch the docker registry DC with the fsGroup
     command: oc patch dc/docker-registry -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ default_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
     when: fsgroup_out | failed
+  
+  - name: Cancel any current deployments
+    command: oc deploy docker-registry --cancel
+    when: fsgroup_out | failed or registry_volume_attached | success
 
   - name: Deploy latest configuration of registry DC
     command: oc deploy docker-registry --latest
     when: fsgroup_out | failed or registry_volume_attached | success
     register: deploy_latest
-
+  
   - name: Re-enable config trigger on docker-registry
     command: oc patch dc/docker-registry -p '{"spec":{"triggers":[{"type":"ConfigChange"}]}}'
     when: deploy_latest | success
-
-  # figure out the registry deployment and wait for it to be running before continuing
-  - include: tasks/registry_wait.yml
+  
+  - name: Check if registry is running
+    script: files/check_registry_running.sh
+    register: registry_running
+    until: registry_running | success
+    retries: 10
+    delay: 15
 
 - name: Installation and Configuration of Log Aggregation
   hosts: project_master
@@ -278,6 +285,8 @@
   - vars.yml
   vars:
     default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
+    image_prefix: "{{ registry_url | regex_replace('^(.*\\/).*$', '\\\\1') }}"
+    registry_fqdn: "{{ registry_url | regex_replace('(.*?)\\/.*$', '\\\\1') }}"
   tasks:
 
   # make sure that we are using the default user (system:admin) and the default project
@@ -304,6 +313,16 @@
 
   - name: Switch to the logging project
     command: "oc project logging"
+
+  # for prerelease / QE stuff
+  - name: Delete Docker auth secret if it exists
+    command: oc delete secret prerelease
+    ignore_errors: true
+    when: prerelease | bool
+
+  - name: Create the Docker auth secret
+    command: oc secrets new-dockercfg prerelease --docker-server={{ registry_fqdn }} --docker-username={{ kerberos_user }}@redhat.com --docker-password={{ kerberos_token }} --docker-email={{ kerberos_user }}@redhat.com
+    when: prerelease | bool
 
   - name: Check for logging-deployer secret
     command: "oc get secret logging-deployer"
@@ -348,6 +367,7 @@
   - name: Instantiate the logging deployer via the template
     shell: >
       oc process logging-deployer-template -n openshift
+      -v IMAGE_PREFIX="{{ image_prefix }}"
       -v KIBANA_HOSTNAME=kibana."{{ r53_wildcard_zone }}"
       -v PUBLIC_MASTER_URL=https://openshift."{{ r53_host_zone }}"
       -v ES_CLUSTER_SIZE=1
@@ -355,31 +375,46 @@
     when: logging_support_template_out | failed
 
   - name: Wait for the deployer to finish
-    shell: "oc get pod | awk '/logging-deployer-[a-zA-Z0-9]*/{ print $3 }'"
-    register: deployer_output
-    until: deployer_output.stdout | search("Completed")
+    script: files/check_pod_complete.sh 'logging-deployer-[a-zA-Z0-9]*'
+    register: check_out
+    until: check_out | success
     retries: 15
     delay: 10
 
   - name: Determine elastic search DC
     shell: "oc get dc | awk '/logging-es-[a-zA-Z0-9]*/{ print $1 }'"
     register: logging_es_out
-
+  
   - name: Modify the kibana DC with a node selector for infra
     command: oc patch dc/logging-kibana -p '{"spec":{"template":{"spec":{"nodeSelector":{"env":"infra"}}}}}'
-
+  
   - name: Modify the es DC with a node selector for infra
     command: oc patch dc/{{ logging_es_out.stdout }} -p '{"spec":{"template":{"spec":{"nodeSelector":{"env":"infra"}}}}}'
-
+  
   # if the image streams exist, don't process the support template
   - name: Check for logging-kibana imagestream
     command: oc get is logging-kibana
     register: kibana_is_out
     ignore_errors: true
-
+  
   - name: Process the logging support template
     shell: "oc process logging-support-template | oc create -f -"
     when: kibana_is_out | failed
+  
+  - name: Determine image stream version tags
+    script: files/image_stream_version_check.sh logging-support-template logging
+    register: is_version_out
+
+  - name: "Pull the image stream tags" 
+    command: oc import-image {{ item }}:{{ is_version_out.stdout }} --insecure=true
+    with_items:
+      - "logging-auth-proxy"
+      - "logging-elasticsearch"
+      - "logging-fluentd"
+      - "logging-kibana"
+    register: image_tag_pull_out
+    retries: 2
+    until: image_tag_pull_out | success
 
   # we use a template to then lay down YAML to create the PV
   # this sets facts that are then consumed in the template
@@ -388,71 +423,71 @@
       pv_name: "logging-pv"
       capacity: "100"
       volid: "{{ hostvars['localhost']['logging_volume'] }}"
-
+  
   - name: Create a YAML file for the PV for the logging volume
     template:
       src: templates/pv.yaml.j2
       dest: /root/logging-pv.yaml
-
+  
   - name: Check for logging PV
     command: oc get pv "{{ pv_name }}"
     register: logging_pv_out
     ignore_errors: true
-
+  
   # as before
   - name: Set the facts for the logging PVC template
     set_fact:
       claim_name: "logging-pvc"
       capacity: "100"
       access_mode: "ReadWriteMany"
-
+  
   - name: Check for logging PVC
     command: oc get pvc "{{ claim_name }}"
     register: logging_pvc_out
     ignore_errors: true
-
+  
   - name: Create a YAML file for the PVC for the logging volume
     template:
       src: templates/pvc.yaml.j2
       dest: /root/logging-pvc.yaml
-
+  
   - name: Create PV from YAML for logging EBS volume
     command: oc create -f /root/logging-pv.yaml
     when: logging_pv_out | failed
-
+  
   - name: Create PVC from YAML for logging EBS volume
     command: oc create -f /root/logging-pvc.yaml
     when: logging_pvc_out | failed
-
+  
   - name: Check if es is still using empty directory
     command: "oc volume dc/{{ logging_es_out.stdout }}"
     register: logging_dc_out
-
+  
   - name: Attach volume to es DC
     command: >
       oc volume dc/{{ logging_es_out.stdout }} --add --overwrite -t persistentVolumeClaim
       --claim-name=logging-pvc --name=elasticsearch-storage
     when: "'empty directory' in logging_dc_out.stdout"
-
+  
   - name: Check if fsGroup is set in logging DC
     shell: "oc get dc/{{ logging_es_out.stdout }} -o yaml | grep fsGroup"
     register: fsgroup_out
     ignore_errors: true
-
+  
   - name: Determine logging project supplemental group
     command: oc get project logging -o json
     register: logging_project_out
     when: fsgroup_out | failed
-
+  
   - name: Process the logging project json into a fact
     set_fact:
       logging_project_json: "{{ logging_project_out.stdout | from_json }}"
     when: fsgroup_out | failed
-
+  
   - name: Patch the es DC with the fsGroup
     command: oc patch dc/{{ logging_es_out.stdout }} -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ logging_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
     when: fsgroup_out | failed
-
+  
   - name: Scale fluentd to number of nodes
     command: oc scale dc/logging-fluentd --replicas={{ groups['tag_openshift-demo-' ~ cluster_id ~ '-host-type_node'] | count }}
 
@@ -463,6 +498,8 @@
   - vars.yml
   vars:
     default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
+    image_prefix: "{{ registry_url | regex_replace('^(.*\\/).*$', '\\\\1') }}"
+    registry_fqdn: "{{ registry_url | regex_replace('(.*?)\\/.*$', '\\\\1') }}"
   tasks:
 
   # make sure that we are using the default user (system:admin) and the default project
@@ -471,6 +508,16 @@
 
   - name: Change to the openshift-infra project
     command: "oc project openshift-infra"
+
+  # for prerelease / QE stuff
+  - name: Delete Docker auth secret if it exists
+    command: oc delete secret prerelease
+    ignore_errors: true
+    when: prerelease | bool
+
+  - name: Create the Docker auth secret
+    command: oc secrets new-dockercfg prerelease --docker-server={{ registry_fqdn }} --docker-username={{ kerberos_user }}@redhat.com --docker-password={{ kerberos_token }} --docker-email={{ kerberos_user }}@redhat.com
+    when: prerelease | bool
 
   - name: Force metrics components into env=infra
     command: oc patch namespace/openshift-infra -p '{"metadata":{"annotations":{"openshift.io/node-selector":"env=infra"}}}'
@@ -537,52 +584,85 @@
   - name: Instantiate the logging deployer via the template
     shell: >
       oc process metrics-deployer-template -n openshift
+      -v IMAGE_PREFIX="{{ image_prefix }}"
       -v CASSANDRA_PV_SIZE=100Gi
       -v HAWKULAR_METRICS_HOSTNAME=metrics."{{ r53_wildcard_zone }}" | oc create -f -
     when: metrics_artifacts_out | failed
 
   - name: Wait for the deployer to finish
-    shell: "oc get pod | awk '/metrics-deployer-[a-zA-Z0-9]*/{ print $3 }'"
-    register: deployer_output
-    until: deployer_output.stdout | search("Completed")
+    script: files/check_pod_complete.sh 'metrics-deployer-[a-zA-Z0-9]*'
+    register: check_out
+    until: check_out | success
     retries: 15
     delay: 10
-
+  
   - name: Wait for the hawkular-cassandra-1 RC to exist
     command: oc get rc hawkular-cassandra-1
     register: rc_out
     until: rc_out.stdout | search("hawkular-cassandra-1")
     retries: 15
     delay: 10
-
+  
   - name: Check if fsGroup is set in cassandra RC
     shell: "oc get rc/hawkular-cassandra-1 -o yaml | grep fsGroup"
     register: fsgroup_out
     ignore_errors: true
-
+  
   - name: Determine openshift-infra project supplemental group
     command: oc get project openshift-infra -o json
     register: infra_project_out
     when: fsgroup_out | failed
-
+  
   - name: Process the openshift-infra project json into a fact
     set_fact:
       infra_project_json: "{{ infra_project_out.stdout | from_json }}"
     when: fsgroup_out | failed
-
+  
   - name: Patch the cassandra RC with the fsGroup
     command: oc patch rc/hawkular-cassandra-1 -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ infra_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
     when: fsgroup_out | failed
     register: patched_out
-
+  
   - name: Find the cassandra pod
     shell: oc get pod | awk '/hawkular-cassandra-1/{ print $1 }'
     register: cassandra_pod_out
     when: patched_out | success
-
+  
   - name: Delete the cassandra pod to get the fsGroup into it
     command: "oc delete pod {{ cassandra_pod_out.stdout }}"
     when: patched_out | success
+
+  - name: Check if the stats resolution has been set
+    shell: oc get rc/heapster -o json | grep resolution
+    register: resolution_out
+    ignore_errors: true
+
+  - name: Patch the heapster RC
+    command: oc patch rc/heapster -p '{"spec":{"template":{"spec":{"containers":[{"name":"heapster","image":"registry.access.redhat.com/openshift3/metrics-heapster:3.2.0","command":["heapster-wrapper.sh","--wrapper.username_file=/hawkular-account/hawkular-metrics.username","--wrapper.password_file=/hawkular-account/hawkular-metrics.password","--wrapper.allowed_users_file=/secrets/heapster.allowed-users","--wrapper.endpoint_check=https://hawkular-metrics:443/hawkular/metrics/status","--source=kubernetes:https://kubernetes.default.svc:443?useServiceAccount=true&kubeletHttps=true&kubeletPort=10250","--sink=hawkular:https://hawkular-metrics:443?tenant=_system&labelToTenant=pod_namespace&labelNodeId=nodename&caCert=/hawkular-cert/hawkular-metrics-ca.certificate&user=%username%&pass=%password%&filter=label(container_name:^/system.slice.*|^/user.slice)","--tls_cert=/secrets/heapster.cert","--tls_key=/secrets/heapster.key","--tls_client_ca=/secrets/heapster.client-ca","--allowed_users=%allowed_users%","--stats_resolution=30s"],"ports":[{"name":"http-endpoint","containerPort":8082,"protocol":"TCP"}],"resources":{},"volumeMounts":[{"name":"heapster-secrets","mountPath":"/secrets"},{"name":"hawkular-metrics-certificate","mountPath":"/hawkular-cert"},{"name":"hawkular-metrics-account","mountPath":"/hawkular-account"}],"readinessProbe":{"exec":{"command":["/opt/heapster-readiness.sh"]},"timeoutSeconds":1,"periodSeconds":10,"successThreshold":1,"failureThreshold":3},"terminationMessagePath":"/dev/termination-log","imagePullPolicy":"IfNotPresent"}]}}}}'
+    when: resolution_out | failed
+
+  - name: Find the heapster pod
+    shell: oc get pod | awk '/heapster/{ print $1 }'
+    register: heapster_pod_out
+
+  - name: Kill the heapster pod
+    shell: oc delete pod {{ heapster_pod_out.stdout }}
+
+  - name: Wait for old heapster pod to be gone
+    shell: oc get pod | grep {{ heapster_pod_out.stdout }}
+    register: metrics_pods_out
+    until: metrics_pods_out | failed
+    retries: 15
+    delay: 10
+    ignore_errors: true
+
+  - name: Wait for new heapster pod to be running
+    shell: oc get pod | grep heapster | grep -i unning
+    register: heapster_running_out
+    until: heapster_running_out | success
+    retries: 15
+    delay: 10
+    ignore_errors: true
 
 - name: Demonstration project configuration
   hosts: project_master
