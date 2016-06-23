@@ -109,7 +109,7 @@ In this case, you could do something like the following:
 cd /home/user/ansible-scripts
 git clone https://github.com/2015-Middleware-Keynote/demo-ansible.git
 cd demo-ansible
-git checkout demo-ansible-2.2.1
+git checkout demo-ansible-2.3.0
 cd ..
 git clone https://github.com/thoraxe/openshift-ansible.git
 cd openshift-ansible
