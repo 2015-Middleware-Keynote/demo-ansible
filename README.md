@@ -74,9 +74,9 @@ In order to use these scripts, you will need to set a few things up.
 - [Python Click](https://github.com/mitsuhiko/click) version 4.0 or greater
 - [Python Boto](http://docs.pythonboto.org) version 2.38.0 or greater
 - [pyOpenSSL](https://github.com/pyca/pyopenssl) version 0.15.1 or greater
-- [Ansible](https://github.com/ansible/ansible) **version 1.9.4**
+- [Ansible](https://github.com/ansible/ansible) **version 1.9.6**
 
-Ansible [1.9.4 is available for RHEL7/CentOS7/Fedora/RPM via EPEL](https://dl.fedoraproject.org/pub/epel/7/x86_64/a/ansible1.9-1.9.4-2.el7.noarch.rpm)
+Ansible [1.9.6 is available for RHEL7/CentOS7/Fedora/RPM via EPEL](https://dl.fedoraproject.org/pub/epel/7/x86_64/a/ansible1.9-1.9.6-2.el7.noarch.rpm)
 
 Python and the Python dependencies may be installed via your OS' package manager
 (eg: python-click on Fedora/CentOS/RHEL) or via
@@ -91,7 +91,7 @@ them, and very specific versions of each.
 - `demo-ansible`
     - [2015-Middleware-Keynote/demo-ansible](https://github.com/2015-Middleware-Keynote/demo-ansible)
     - You will want to use `master` until we implement tags on this repository
-    - You will want to check out tag `demo-ansible-2.2.1`
+    - You will want to check out tag `demo-ansible-2.3.0`
 - `openshift-ansible`
     - [thoraxe/openshift-ansible](https://github.com/thoraxe/openshift-ansible)
     - You will want to check out tag `openshift-ansible-3.0.94-1-hotfix`

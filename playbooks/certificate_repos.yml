@@ -1,0 +1,24 @@
+# vim: set ft=ansible:
+---
+- include: cloudformation_setup.yml
+
+- include: group_setup.yml
+
+- name: Certificate repository configuration
+  hosts: cluster_hosts
+  gather_facts: yes
+  tasks:
+  - include: ../../aos-ansible/playbooks/roles/ops_mirror_bootstrap/tasks/main.yml
+    vars:
+      omb_aos_repo: "{{ aos_repo }}"
+    when: use_certificate_repos | bool
+
+  - include: ../../aos-ansible/playbooks/roles/qe_registry_bootstrap/tasks/main.yml
+    vars:
+      omb_aos_repo: "{{ aos_repo }}"
+      qe_openshift_kerberos_user: "{{ kerberos_user }}"
+      qe_openshift_token: "{{ kerberos_token }}"
+    when: use_certificate_repos | bool and prerelease | bool
+
+
+

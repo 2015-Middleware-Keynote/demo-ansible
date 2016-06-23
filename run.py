@@ -54,8 +54,8 @@ hexboard_sizes = ['tiny', 'xsmall', 'small', 'medium', 'large', 'xlarge']
               show_default=True)
 
 ### Subscription and Software options
-@click.option('--package-version', help='OpenShift Package version (eg: 3.2.0.44)',
-              show_default=True, default='3.2.0.44')
+@click.option('--package-version', help='OpenShift Package version (eg: 3.2.0.46)',
+              show_default=True, default='3.2.0.46')
 @click.option('--rhsm-user', help='Red Hat Subscription Management User')
 @click.option('--rhsm-pass', help='Red Hat Subscription Management Password',
                 hide_input=True,)
@@ -236,6 +236,8 @@ def launch_demo_env(num_nodes,
     click.confirm('ARE YOU REALLY SURE YOU WANT TO DELETE THE CLUSTER %s' % cluster_id, abort=True)
     click.confirm('Press enter to continue', abort=True, default=True)
 
+  playbooks = []
+
   if debug_playbook:
     playbooks = [debug_playbook]
   elif run_only_smoke_tests:
@@ -243,7 +245,21 @@ def launch_demo_env(num_nodes,
   elif cleanup:
     playbooks = ['playbooks/cleanup.yml']
   else:
-    playbooks = ['playbooks/cloudformation_setup.yml','playbooks/openshift_setup.yml', 'playbooks/projects_setup.yml']
+
+    # start with the basic setup
+    playbooks = ['playbooks/cloudformation_setup.yml']
+
+    # if cert repos, then add that playbook
+    if use_certificate_repos:
+      playbooks.append('playbooks/certificate_repos.yml')
+
+    # if not cert repos, add the register hosts playbook
+    if not use_certificate_repos:
+      playbooks.append('playbooks/register_hosts.yml')
+    
+    # add the setup and projects playbooks
+    playbooks.append('playbooks/openshift_setup.yml')
+    playbooks.append('playbooks/projects_setup.yml')
 
   for playbook in playbooks:
 

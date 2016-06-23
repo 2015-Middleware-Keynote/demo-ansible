@@ -1,0 +1,53 @@
+# vim: set ft=ansible:
+# This will uninstall OpenShift software but not tear down the env
+---
+- include: cloudformation_setup.yml
+
+- include: group_setup.yml
+
+# Configure the instances
+- include: ../../openshift-ansible/playbooks/adhoc/uninstall.yml
+  vars_files:
+  - ../../../demo-ansible/playbooks/vars.yml
+  vars:
+    deployment_type: "{{ deployment_type }}"
+    openshift_cluster_id: "{{ cluster_id }}"
+    openshift_debug_level: "{{ debug_level }}"
+    openshift_node_debug_level: "{{ node_debug_level | default(debug_level, true) }}"
+    osm_controller_args:
+      cloud-provider:
+      - "aws"
+      cloud-config:
+      - "/etc/origin/aws.conf"
+    osm_api_server_args:
+      cloud-provider:
+      - "aws"
+      cloud-config:
+      - "/etc/origin/aws.conf"
+    openshift_node_kubelet_args:
+      max-pods:
+      - "100"
+      cloud-provider:
+      - "aws"
+      cloud-config:
+      - "/etc/origin/aws.conf"
+    openshift_master_debug_level: "{{ master_debug_level | default(debug_level, true) }}"
+    openshift_master_access_token_max_seconds: 2419200
+    openshift_master_identity_providers: "{{ identity_providers }}"
+    openshift_master_api_port: "{{ console_port }}"
+    openshift_master_console_port: "{{ console_port }}"
+    openshift_pkg_version: "{{ package_version }}"
+    openshift_master_logging_public_url: "https://kibana.{{ r53_wildcard_zone }}"
+    openshift_master_metrics_public_url: "https://metrics.{{ r53_wildcard_zone }}/hawkular/metrics"
+    osm_cluster_network_cidr: 10.0.0.0/8
+    osm_host_subnet_length: 16
+    osm_default_subdomain: "{{ r53_wildcard_zone }}"
+    osm_default_node_selector: "env=demo"
+    osm_use_cockpit: false
+    openshift_master_cluster_method: native
+    openshift_master_cluster_hostname: openshift.internal.{{ r53_host_zone }}
+    openshift_master_cluster_public_hostname: openshift.{{ r53_host_zone }}
+    os_firewall_enabled: False
+    oreg_url: "{{ registry_url }}"
+
+
