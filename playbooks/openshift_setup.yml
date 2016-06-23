@@ -21,12 +21,13 @@
       overwrite: yes
     delegate_to: localhost
     
-# Register hosts via RHSM (as required) and configure repos
-- include: subscriptions_and_repos.yml
-
 - name: Miscellaneous Host Configuration
   hosts: cluster_hosts
   tasks:
+  - name: Set the OpenShift package version (Ansible 1.9.x bug)
+    set_fact:
+      openshift_pkg_version: "{{ package_version }}"
+
   - name: Create /etc/origin directory
     command: mkdir -p /etc/origin
 
@@ -37,25 +38,17 @@
       option: Zone
       value: "{{ ec2_placement }}"
 
-      #  - name: Install docker 1.8.2
-      #    yum: 
-      #      name: docker-1.8.2 
-      #      state: present
-      #    when: not prerelease | bool
-      #
-      #  - name: Replace docker-storage-setup
-      #    copy:
-      #      src: files/docker-storage-setup.sh
-      #      dest: /bin/docker-storage-setup
-      #    when: not prerelease | bool
-      #  
-      #  - name: Replace libdss.sh
-      #    copy:
-      #      src: files/libdss.sh
-      #      dest: /usr/lib/docker-storage-setup/
-      #      mode: 0755
-      #    when: not prerelease | bool
+  - name: Enable rhui extras channel
+    command: yum-config-manager --enable rhui-REGION-rhel-server-extras
   
+  - name: Disable rhel-72 prerelease repo when not prerelease
+    command: yum-config-manager --disable rhel-72
+    when: not prerelease | bool
+
+  - name: Disable rhel-72-extras prerelease repo when not prerelease
+    command: yum-config-manager --disable rhel-72-extras
+    when: not prerelease | bool
+
   # this file is placed during the cloudformation instantiation
   - name: Add delay to /etc/sysconfig/docker-storage-setup
     lineinfile:

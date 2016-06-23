@@ -1,5 +1,9 @@
 # vim: set ft=ansible:
 ---
+- include: cloudformation_setup.yml
+
+- include: group_setup.yml
+
 - name: Register host(s)
   hosts: cluster_hosts
   serial: 1
@@ -14,23 +18,11 @@
     register: register_result
     when: not (skip_subscription_management | bool)
 
-  - name: Enable rhui extras channel
-    command: yum-config-manager --enable rhui-REGION-rhel-server-extras
-    when: register_result | changed
-
   - name: Disable all known rhsm repos
     command: subscription-manager repos --disable='*'
     when: register_result | changed
 
   - name: Subscribe only to the ose repo
-    command: subscription-manager repos --enable=rhel-7-server-ose-3.1-rpms
+    command: subscription-manager repos --enable=rhel-7-server-ose-3.2-rpms
     when: register_result | changed
 
-- name: Software update
-  hosts: cluster_hosts
-  tasks:
-  - name: Update current package set
-    yum:
-      name: '*'
-      state: latest
-    when: not (skip_subscription_management | bool)
