@@ -91,10 +91,10 @@ them, and very specific versions of each.
 - `demo-ansible`
     - [2015-Middleware-Keynote/demo-ansible](https://github.com/2015-Middleware-Keynote/demo-ansible)
     - You will want to use `master` until we implement tags on this repository
-    - You will want to check out tag `demo-ansible-2.3.0`
+    - You will want to check out tag `demo-ansible-2.4.0`
 - `openshift-ansible`
     - [thoraxe/openshift-ansible](https://github.com/thoraxe/openshift-ansible)
-    - You will want to check out tag `openshift-ansible-3.0.94-1-hotfix`
+    - You will want to check out tag `openshift-ansible-3.2.13-1-hotfix`
 
 The folders for these repositories are expected to live in the same
 subdirectory. An example tree structure is below:
@@ -109,12 +109,12 @@ In this case, you could do something like the following:
 cd /home/user/ansible-scripts
 git clone https://github.com/2015-Middleware-Keynote/demo-ansible.git
 cd demo-ansible
-git checkout demo-ansible-2.3.0
+git checkout demo-ansible-2.4.0
 cd ..
 git clone https://github.com/thoraxe/openshift-ansible.git
 cd openshift-ansible
-git fetch origin :remotes/origin/openshift-ansible-3.0.94-1-hotfix
-git checkout openshift-ansible-3.0.94-1-hotfix
+git fetch origin :remotes/origin/openshift-ansible-3.2.13-1-hotfix
+git checkout openshift-ansible-3.2.13-1-hotfix
 ```
 
 ## Usage

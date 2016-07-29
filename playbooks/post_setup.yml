@@ -31,7 +31,7 @@
     command: "htpasswd -b /etc/origin/master/htpasswd {{ item.user }} {{ default_password }}"
     with_items: users
 
-- name: Configure default project
+- name: Configuration of Router
   hosts: project_master
   vars_files:
   - vars.yml
@@ -43,47 +43,6 @@
 
   - name: Switch to default project
     command: oc project default
-
-  - name: Set nodeselector for the default project to be env=infra
-    shell: "oc get namespace default -o yaml  | sed -e '/  annotations:/a\\    openshift.io/node-selector: env=infra' | oc replace -f -"
-
-- name: Installation and Configuration of Router
-  hosts: project_master
-  vars_files:
-  - vars.yml
-  vars:
-    default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
-  tasks:
-  - name: Change the oc context
-    command: "oc config use-context {{ default_context }}"
-
-  - name: Switch to default project
-    command: oc project default
-
-  - name: Verify whether a router exists or not
-    command: oadm router --dry-run --service-account=router
-    register: router_out
-    ignore_errors: true
-
-  - name: Create router cert temporary directory
-    file:
-      dest: "~{{ ansible_ssh_user }}/router_certs"
-      state: directory
-    when: router_out | failed
-
-  - name: Generate router certificate files
-    command: "oadm create-server-cert --signer-cert=/etc/origin/master/ca.crt --signer-key=/etc/origin/master/ca.key --signer-serial=/etc/origin/master/ca.serial.txt --hostnames='*.{{ r53_wildcard_zone }}' --cert={{ r53_wildcard_zone }}.crt --key={{ r53_wildcard_zone }}.key"
-    when: router_out | failed
-
-  - name: Assemble router PEM
-    assemble:
-      dest: "~{{ ansible_ssh_user }}/{{ r53_wildcard_zone }}.pem"
-      src: "~{{ ansible_ssh_user }}/router_certs"
-    when: router_out | failed
-
-  - name: Install router
-    command: "oadm router --default-cert={{ r53_wildcard_zone }}.pem --credentials=/etc/origin/master/openshift-router.kubeconfig --service-account=router --images='{{ registry_url }}'"
-    when: router_out | failed
 
   - name: Scale router
     command: "oc scale --replicas={{ num_infra_nodes }} dc router"
@@ -95,6 +54,8 @@
     retries: 10
     delay: 15
 
+# ** NOTE: Still using this because there's some weird bug when calling
+# openshift-ansible from demo-ansible
 # Using EBS storage with OpenShift requires that the systems
 # know the EC2 credentials in order to manipulate the EBS volumes.
 # masters require the keys in /etc/sysconfig/atomic-openshift-master
@@ -165,119 +126,110 @@
   vars:
     default_context: 'default/openshift-internal-{{ r53_host_zone  | regex_replace("\.", "-") }}:{{ api_port }}/system:admin'
   tasks:
-
-  # make sure that we are using the default user (system:admin) and the default project
-  - name: Change the oc context
-    command: "oc config use-context {{ default_context }}"
-
-  - name: Switch to default project
-    command: oc project default
-
-  - name: Check whether a registry exists or not
-    command: oadm registry --dry-run
-    register: registry_out
-    ignore_errors: true
-
-  - name: Install registry
-    command: "oadm registry --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='{{ registry_url }}'"
-    when: registry_out | failed
-
-  # we use a template to then lay down YAML to create the PV
-  # this sets facts that are then consumed in the template
-  - name: Set the facts for the registry PV template
-    set_fact:
-      pv_name: "registry-pv"
-      capacity: "50"
-      volid: "{{ hostvars['localhost']['registry_volume'] }}"
-  
-  - name: Create a YAML file for the PV for the Registry volume
-    template:
-      src: templates/pv.yaml.j2
-      dest: /root/registry-pv.yaml
-  
-  - name: Check for registry PV
-    command: oc get pv "{{ pv_name }}"
-    register: registry_pv_out
-    ignore_errors: true
-  
-  # as before
-  - name: Set the facts for the registry PVC template
-    set_fact:
-      claim_name: "registry-pvc"
-      capacity: "50"
-      access_mode: "ReadWriteMany"
-  
-  - name: Check for registry PVC
-    command: oc get pvc "{{ claim_name }}"
-    register: registry_pvc_out
-    ignore_errors: true
-  
-  - name: Create a YAML file for the PVC for the Registry volume
-    template:
-      src: templates/pvc.yaml.j2
-      dest: /root/registry-pvc.yaml
-  
-  - name: Create PV from YAML for registry EBS volume
-    command: oc create -f /root/registry-pv.yaml
-    when: registry_pv_out | failed
-  
-  - name: Create PVC from YAML for registry EBS volume
-    command: oc create -f /root/registry-pvc.yaml
-    when: registry_pvc_out | failed
-  
-  - name: Disable config change trigger on registry DC
-    command: oc patch dc/docker-registry -p '{"spec":{"triggers":[]}}'
-  
-  - name: Check if registry is still using empty directory
-    command: oc volume dc/docker-registry
-    register: registry_dc_out
-      
-  - name: Attach volume to registry DC
-    command: >
-      oc volume dc/docker-registry --add --overwrite -t persistentVolumeClaim
-      --claim-name=registry-pvc --name=registry-storage
-    when: "'empty directory' in registry_dc_out.stdout"
-    register: registry_volume_attached
-  
-  - name: Check if fsGroup is set in registry DC
-    shell: "oc get dc/docker-registry -o yaml | grep fsGroup"
-    register: fsgroup_out
-    ignore_errors: true
-  
-  - name: Determine default project supplemental group
-    command: oc get project default -o json
-    register: default_project_out
-    when: fsgroup_out | failed
-  
-  - name: Process the default project json into a fact
-    set_fact:
-      default_project_json: "{{ default_project_out.stdout | from_json }}"
-    when: fsgroup_out | failed
-  
-  - name: Patch the docker registry DC with the fsGroup
-    command: oc patch dc/docker-registry -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ default_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
-    when: fsgroup_out | failed
-  
-  - name: Cancel any current deployments
-    command: oc deploy docker-registry --cancel
-    when: fsgroup_out | failed or registry_volume_attached | success
-
-  - name: Deploy latest configuration of registry DC
-    command: oc deploy docker-registry --latest
-    when: fsgroup_out | failed or registry_volume_attached | success
-    register: deploy_latest
-  
-  - name: Re-enable config trigger on docker-registry
-    command: oc patch dc/docker-registry -p '{"spec":{"triggers":[{"type":"ConfigChange"}]}}'
-    when: deploy_latest | success
-  
-  - name: Check if registry is running
-    script: files/check_registry_running.sh
-    register: registry_running
-    until: registry_running | success
-    retries: 10
-    delay: 15
-
+    
+    # make sure that we are using the default user (system:admin) and the default project
+    - name: Change the oc context
+      command: "oc config use-context {{ default_context }}"
+    
+    - name: Switch to default project
+      command: oc project default
+    
+    # we use a template to then lay down YAML to create the PV
+    # this sets facts that are then consumed in the template
+    - name: Set the facts for the registry PV template
+      set_fact:
+        pv_name: "registry-pv"
+        capacity: "50"
+        volid: "{{ hostvars['localhost']['registry_volume'] }}"
+    
+    - name: Create a YAML file for the PV for the Registry volume
+      template:
+        src: templates/pv.yaml.j2
+        dest: /root/registry-pv.yaml
+    
+    - name: Check for registry PV
+      command: oc get pv "{{ pv_name }}"
+      register: registry_pv_out
+      ignore_errors: true
+    
+    # as before
+    - name: Set the facts for the registry PVC template
+      set_fact:
+        claim_name: "registry-pvc"
+        capacity: "50"
+        access_mode: "ReadWriteMany"
+    
+    - name: Check for registry PVC
+      command: oc get pvc "{{ claim_name }}"
+      register: registry_pvc_out
+      ignore_errors: true
+    
+    - name: Create a YAML file for the PVC for the Registry volume
+      template:
+        src: templates/pvc.yaml.j2
+        dest: /root/registry-pvc.yaml
+    
+    - name: Create PV from YAML for registry EBS volume
+      command: oc create -f /root/registry-pv.yaml
+      when: registry_pv_out | failed
+    
+    - name: Create PVC from YAML for registry EBS volume
+      command: oc create -f /root/registry-pvc.yaml
+      when: registry_pvc_out | failed
+    
+    - name: Disable config change trigger on registry DC
+      command: oc patch dc/docker-registry -p '{"spec":{"triggers":[]}}'
+    
+    - name: Check if registry is still using empty directory
+      command: oc volume dc/docker-registry
+      register: registry_dc_out
+        
+    - name: Attach volume to registry DC
+      command: >
+        oc volume dc/docker-registry --add --overwrite -t persistentVolumeClaim
+        --claim-name=registry-pvc --name=registry-storage
+      when: "'empty directory' in registry_dc_out.stdout"
+      register: registry_volume_attached
+    
+    - name: Check if fsGroup is set in registry DC
+      shell: "oc get dc/docker-registry -o yaml | grep fsGroup"
+      register: fsgroup_out
+      ignore_errors: true
+    
+    - name: Determine default project supplemental group
+      command: oc get project default -o json
+      register: default_project_out
+      when: fsgroup_out | failed
+    
+    - name: Process the default project json into a fact
+      set_fact:
+        default_project_json: "{{ default_project_out.stdout | from_json }}"
+      when: fsgroup_out | failed
+    
+    - name: Patch the docker registry DC with the fsGroup
+      command: oc patch dc/docker-registry -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup":{{ default_project_json["metadata"]["annotations"]["openshift.io/sa.scc.supplemental-groups"].split("/").0 }}}}}}}'
+      when: fsgroup_out | failed
+    
+    - name: Cancel any current deployments
+      command: oc deploy docker-registry --cancel
+      when: fsgroup_out | failed or registry_volume_attached | success
+    
+    - name: Deploy latest configuration of registry DC
+      command: oc deploy docker-registry --latest
+      when: fsgroup_out | failed or registry_volume_attached | success
+      register: deploy_latest
+    
+    - name: Re-enable config trigger on docker-registry
+      command: oc patch dc/docker-registry -p '{"spec":{"triggers":[{"type":"ConfigChange"}]}}'
+      when: deploy_latest | success
+    
+    - name: Check if registry is running
+      script: files/check_registry_running.sh
+      register: registry_running
+      until: registry_running | success
+      retries: 10
+      delay: 15
+    
 - name: Installation and Configuration of Log Aggregation
   hosts: project_master
   gather_facts: no

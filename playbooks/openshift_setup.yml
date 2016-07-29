@@ -111,6 +111,8 @@
     openshift_master_cluster_public_hostname: openshift.{{ r53_host_zone }}
     os_firewall_enabled: False
     oreg_url: "{{ registry_url }}"
+    openshift_hosted_router_selector: "env=infra"
+    openshift_hosted_registry_selector: "env=infra"
 
 # Router, Registry, internal users and projects, priming
 - include: post_setup.yml
