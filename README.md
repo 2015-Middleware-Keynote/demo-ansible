@@ -1,3 +1,6 @@
+# DEPRECATION NOTICE
+This repository is no longer maintained.
+
 # OpenShift 3 Demo Environment Provisioner
 These Ansible scripts were originally created to stand up an environment running the demo from the
 [2015 JBoss Middleware Keynote](https://www.youtube.com/watch?v=wWNVpFibayA) at Red Hat Summit.
